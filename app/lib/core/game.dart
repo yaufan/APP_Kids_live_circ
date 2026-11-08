@@ -123,7 +123,7 @@ class Day {
     final weather = weatherFor(rnd, yesterday: previous?.weather);
     final chore = nextChore(previous?.chore);
     final seed = rnd.nextInt(1 << 30);
-    final plan = DayPlan.make(weekday, off: s.off, full: s.full);
+    final plan = DayPlan.make(weekday, off: s.off, full: s.full, weather: weather);
     return Day(weekday: weekday, weather: weather, chore: chore, seed: seed, happenings: scheduleHappenings(plan, weather, math.Random(seed), level: s.level));
   }
 
@@ -146,7 +146,7 @@ class Day {
   /// A happening waiting to be dealt with.
   final Happening? active;
 
-  DayPlan plan(Settings s) => DayPlan.make(weekday, off: s.off, full: s.full);
+  DayPlan plan(Settings s) => DayPlan.make(weekday, off: s.off, full: s.full, weather: weather);
 
   Task? current(Settings s) {
     final p = plan(s);

@@ -14,9 +14,14 @@ class DayPlan {
 
   /// The plan for [weekday] (1 Monday … 7 Sunday) with the tasks a parent
   /// turned [off] left out; without the [full] version only the free ones.
-  factory DayPlan.make(int weekday, {Set<Task> off = const {}, bool full = true}) {
+  /// On a typhoon day nobody goes out: no school, park or shopping
+  /// (docs/design.md 「颱風天在家玩」).
+  factory DayPlan.make(int weekday, {Set<Task> off = const {}, bool full = true, Weather weather = Weather.sun}) {
     final base = Week.weekend(weekday) ? Task.weekend : Task.weekday;
-    final tasks = [for (final t in base) if (!off.contains(t) && (full || t.free)) t];
+    final tasks = [
+      for (final t in base)
+        if (!off.contains(t) && (full || t.free) && (weather.goesOut || t.scene.home)) t,
+    ];
     return DayPlan._(weekday, tasks);
   }
 
@@ -114,5 +119,6 @@ Chore nextChore(Chore? previous) {
 }
 
 /// How long the hand waits on a task before moving on by itself: a day of
-/// about fifteen tasks takes about ten minutes (docs/design.md 「時鐘」).
-const taskWindow = Duration(seconds: 40);
+/// about fifteen tasks takes about ten minutes (docs/design.md 「時鐘」);
+/// the little ones get a bit longer to find the room.
+Duration taskWindow(Level level) => Duration(seconds: level == Level.small ? 55 : 40);

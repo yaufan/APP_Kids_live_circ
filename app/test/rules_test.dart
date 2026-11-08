@@ -35,6 +35,9 @@ void main() {
       }
       expect(Task.optional, isNot(contains(Task.wake)));
       expect(Task.optional, isNot(contains(Task.sleep)));
+      final typhoon = DayPlan.make(1, weather: Weather.storm);
+      expect(typhoon.tasks.every((t) => t.scene.home), isTrue, reason: 'nobody goes out in a typhoon');
+      expect(typhoon.tasks, contains(Task.tidy));
     });
 
     test('the clock ring: tasks in a row with the same picture share it, the hand goes round in order', () {
@@ -61,8 +64,8 @@ void main() {
         final rnd = math.Random(seed);
         final weekday = 1 + rnd.nextInt(7);
         final weather = Weather.values[rnd.nextInt(Weather.values.length)];
-        final plan = DayPlan.make(weekday);
-        final sched = scheduleHappenings(plan, weather, rnd);
+        final plan = DayPlan.make(weekday, weather: weather);
+        final sched = scheduleHappenings(DayPlan.make(weekday, weather: weather), weather, rnd);
         expect(sched.length, inInclusiveRange(2, 4), reason: 'seed $seed');
         expect(sched.values.toSet().length, sched.length, reason: 'no happening twice in a day');
         for (final MapEntry(key: i, value: h) in sched.entries) {
