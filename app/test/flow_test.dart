@@ -69,7 +69,7 @@ void main() {
       expect(find.byKey(const ValueKey('big-clock')), findsNothing);
 
       // Something happens: 小明 needs the potty.
-      app.change((g) => g.copyWith(day: g.day!.copyWith(active: Happening.pee)));
+      app.change((g) => g.copyWith(day: g.day!.copyWith(active: Happening.pee, happened: {...g.day!.happened, ...Happening.values.where((h) => h != Happening.pee)})));
       await app.settle(800);
       await shot('08_happening_pee');
       await tester.tap(find.byKey(const ValueKey('thing-toilet')));
@@ -84,12 +84,14 @@ void main() {
       await app.tapLabel('下樓：客廳', ms: 900);
       await app.tapLabel('往右：門口', ms: 900);
       await shot('10_entrance');
-      await app.tapLabel('出門：小街', ms: 900);
+      await tester.tap(find.byKey(const ValueKey('thing-door')));
+      await app.settle(900);
+      expect(find.byKey(const ValueKey('scene-street')), findsOneWidget);
       await shot('11_street');
       await tester.tap(find.byKey(const ValueKey('thing-park')));
       await app.settle(900);
       await shot('12_park');
-      await app.tapLabel('回小街：小街', ms: 900);
+      await app.tapLabel('小街', ms: 900);
       await tester.tap(find.byKey(const ValueKey('thing-school')));
       await app.settle(900);
       await shot('13_school');

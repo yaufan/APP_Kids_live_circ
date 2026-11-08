@@ -188,6 +188,16 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       _go(place ?? Scene.entrance);
       return;
     }
+    // The stairs and the front door are the way through.
+    final exits = ref.read(scenesProvider).asData?.value[here]?.exits ?? const {};
+    if (t.id == 'stairs' && exits['up'] != null) {
+      _go(exits['up']!);
+      return;
+    }
+    if (t.id == 'door' && here == Scene.entrance) {
+      _go(Scene.street);
+      return;
+    }
     speak(ref, t.zh, en: t.en);
   }
 
@@ -264,6 +274,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       }
       if (here == Scene.entrance && hop == Scene.street) exitGlow = 'out';
     }
+    // The way to go lights up: the thing to tap here, or the stairs / the
+    // door on the way, or an arrow on the strip.
+    final glowThing = hereIsTarget ? targetThing : (exitGlow == 'up' ? 'stairs' : (exitGlow == 'out' ? 'door' : null));
 
     Widget arrow(String key, IconData icon, Scene to, String label) {
       final lit = exitGlow == key;
@@ -277,15 +290,17 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
         child: Pressable(
           onTap: () => _go(to),
           sound: null,
-          child: Container(
-            width: 56,
-            height: 56,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 52,
+            height: 60,
             decoration: BoxDecoration(
-              color: lit ? Paper.glow : Colors.white.withValues(alpha: 0.9),
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: lit ? Paper.gold.withValues(alpha: 0.7) : const Color(0x336B4F33), blurRadius: lit ? 16 : 8, offset: const Offset(0, 3))],
+              color: lit ? Paper.glow : Paper.page,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Paper.edge, width: 1.5),
+              boxShadow: lit ? [BoxShadow(color: Paper.gold.withValues(alpha: 0.6), blurRadius: 14)] : null,
             ),
-            child: Icon(icon, size: 34, color: Paper.ink),
+            child: Icon(icon, size: 32, color: Paper.ink),
           ),
         ),
       );
@@ -299,7 +314,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       states: _states(g, here),
       decos: g.decosIn(here),
       sky: sky,
-      glow: hereIsTarget ? targetThing : null,
+      glow: glowThing,
       glowAvatar: active != null && active.scene == null,
       sign: active?.sign,
       mood: active?.mood ?? (g.dayOver ? Mood.sleepy : Mood.normal),
@@ -315,7 +330,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       },
     );
 
-    final stripScenes = here.home ? Scene.rooms : [Scene.living, ...Scene.places];
+    final stripScenes = here.home ? Scene.rooms : [Scene.living, Scene.street, ...Scene.places];
     final bubbleText = active != null ? Strings.happening(name, active) : (task == null ? '' : (hereIsTarget ? '${Strings.nowDo(name, task)}${Strings.here(task)}' : '${Strings.nowDo(name, task)}${Strings.goTo(task.scene)}'));
 
     return Scaffold(
@@ -389,20 +404,23 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
                   child: Padding(padding: const EdgeInsets.fromLTRB(4, 6, 4, 2), child: sceneView),
                 ),
               ),
-              if (data.exits['left'] case final s?) Positioned(left: 6, top: 0, bottom: 0, child: Center(child: arrow('left', Icons.arrow_back_rounded, s, Strings.left))),
-              if (data.exits['right'] case final s?) Positioned(right: 6, top: 0, bottom: 0, child: Center(child: arrow('right', Icons.arrow_forward_rounded, s, Strings.right))),
-              if (data.exits['up'] case final s?) Positioned(right: 10, top: 10, child: arrow('up', Icons.stairs_rounded, s, Strings.stairsUp)),
-              if (data.exits['down'] case final s?) Positioned(left: 10, bottom: 10, child: arrow('down', Icons.arrow_downward_rounded, s, Strings.stairsDown)),
-              if (here == Scene.entrance) Positioned(right: 10, bottom: 10, child: arrow('out', Icons.door_front_door_rounded, Scene.street, Strings.outside)),
-              if (!here.home) Positioned(left: 10, bottom: 10, child: arrow('back', Icons.home_rounded, here == Scene.street ? Scene.entrance : Scene.street, here == Scene.street ? Strings.home : Strings.toStreet)),
             ]),
           ),
           // The strip of rooms.
           Container(
-            height: 76,
-            padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
+            height: 78,
+            padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
             decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Color(0x226B4F33), offset: Offset(0, -2), blurRadius: 8)]),
             child: Row(children: [
+              // The left end: the way left, or down the stairs.
+              if (data.exits['left'] case final s?)
+                arrow('left', Icons.arrow_back_rounded, s, Strings.left)
+              else if (data.exits['down'] case final s?)
+                arrow('down', Icons.arrow_downward_rounded, s, Strings.stairsDown)
+              else if (!here.home && here != Scene.street)
+                arrow('back', Icons.arrow_back_rounded, Scene.street, Strings.toStreet)
+              else
+                const SizedBox(width: 52),
               for (final s in stripScenes)
                 Expanded(
                   child: Center(
@@ -414,6 +432,16 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
                     ),
                   ),
                 ),
+              if (data.exits['right'] case final s?)
+                arrow('right', Icons.arrow_forward_rounded, s, Strings.right)
+              else if (data.exits['up'] case final s?)
+                arrow('up', Icons.stairs_rounded, s, Strings.stairsUp)
+              else if (data.exits['down'] case final s? when data.exits['left'] != null)
+                arrow('down', Icons.arrow_downward_rounded, s, Strings.stairsDown)
+              else if (here == Scene.entrance)
+                arrow('out', Icons.door_front_door_rounded, Scene.street, Strings.outside)
+              else
+                const SizedBox(width: 52),
             ]),
           ),
         ]),
@@ -462,9 +490,9 @@ class _StripIcon extends StatelessWidget {
         sound: null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          width: 60,
+          width: 54,
           height: 60,
-          padding: const EdgeInsets.all(5),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: lit ? Paper.glow : (here ? Paper.page : Colors.white),
             borderRadius: BorderRadius.circular(16),

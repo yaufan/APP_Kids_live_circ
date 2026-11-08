@@ -315,7 +315,7 @@ void main() {
 
     // Something happens.
     mark('happening');
-    change((g) => g.copyWith(day: g.day!.copyWith(active: Happening.pee)));
+    change((g) => g.copyWith(day: g.day!.copyWith(active: Happening.pee, happened: {...g.day!.happened, ...Happening.values.where((h) => h != Happening.pee)})));
     caption.value = '偶爾會發生的事：想尿尿了！\n夾腿、頭上一滴小水滴，要注意到牠';
     await seconds(3.5);
     await thing('toilet');
@@ -324,12 +324,12 @@ void main() {
 
     // Out.
     mark('out');
-    caption.value = '下樓、到門口、出門';
+    caption.value = '下樓、到門口、點大門出去';
     await label('下樓：客廳');
     await seconds(1.5);
     await label('往右：門口');
     await seconds(1.5);
-    await label('出門：小街');
+    await thing('door');
     await seconds(1.5);
     caption.value = '小街：公園、幼兒園、超市、診所';
     await seconds(2.5);
@@ -354,9 +354,9 @@ void main() {
     mark('sleep');
     change((g) => g.turnClock(g.day!.plan(g.settings).indexOf(Task.sleep)));
     caption.value = '回家，上樓去房間睡覺';
-    await label('回小街：小街');
+    await label('小街');
     await seconds(1.2);
-    await label(Strings.home);
+    await thing('home');
     await seconds(1.2);
     await label('往左：客廳');
     await seconds(1.2);
