@@ -142,8 +142,16 @@ class _ScrubViewState extends State<ScrubView> {
     _gone = List.filled(n, false);
   }
 
+  void _lift() {
+    if (!mounted) return;
+    setState(() {
+      _finger = null;
+      _last = null;
+    });
+  }
+
   void _move(Offset p, Size size) {
-    if (_done) return;
+    if (_done || !mounted) return;
     final last = _last;
     _last = p;
     setState(() => _finger = p);
@@ -188,11 +196,8 @@ class _ScrubViewState extends State<ScrubView> {
                 _move(e.localPosition, size);
               },
               onPointerMove: (e) => _move(e.localPosition, size),
-              onPointerUp: (_) => setState(() {
-                _finger = null;
-                _last = null;
-              }),
-              onPointerCancel: (_) => setState(() => _finger = null),
+              onPointerUp: (_) => _lift(),
+              onPointerCancel: (_) => _lift(),
               child: Stack(clipBehavior: Clip.none, children: [
                 Positioned.fill(
                   child: Container(
@@ -274,7 +279,7 @@ class _DragViewState extends State<DragView> {
 
   void _drop(Size size, double slotSize) {
     final i = _held;
-    if (i == null) return;
+    if (i == null || !mounted) return;
     _held = null;
     final item = widget.step.items[i];
     final rects = _slotRects(size, slotSize);

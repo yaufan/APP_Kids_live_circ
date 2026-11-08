@@ -95,7 +95,7 @@ class SceneView extends StatelessWidget {
 
         final kids = <Widget>[
           Positioned.fill(child: Art(ArtPath.scene(data.scene, 'bg'), fit: BoxFit.fill, sky: sky)),
-          for (final d in shownDecos) Positioned.fromRect(rect: rectOf(d.box), child: Art(ArtPath.scene(data.scene, d.id))),
+          for (final d in shownDecos) Positioned.fromRect(rect: rectOf(d.box), child: Art(ArtPath.scene(data.scene, d.id), sky: sky)),
         ];
         var avatarDrawn = false;
         void drawAvatar() {
@@ -134,7 +134,7 @@ class SceneView extends StatelessWidget {
           if (t.z >= 50) drawAvatar();
           final r = rectOf(t.box);
           final state = states[t.id] ?? t.states.first;
-          Widget pic = Art(ArtPath.scene(data.scene, t.file(state)));
+          Widget pic = Art(ArtPath.scene(data.scene, t.file(state)), sky: sky);
           if (wiggle[t.id] != null) pic = Wiggle(trigger: wiggle[t.id]!, child: pic);
           if (glow == t.id) {
             kids.add(Positioned.fromRect(rect: r.inflate(math.min(r.width, r.height) * 0.35), child: const Glow()));
@@ -146,7 +146,8 @@ class SceneView extends StatelessWidget {
         if (dim > 0) kids.add(Positioned.fill(child: IgnorePointer(child: ColoredBox(color: Paper.night.withValues(alpha: 0.75 * dim)))));
 
         Offset? down;
-        return Center(
+        return Align(
+          alignment: Alignment.bottomCenter,
           child: SizedBox(
             width: w,
             height: h,

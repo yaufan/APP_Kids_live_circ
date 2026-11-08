@@ -26,7 +26,9 @@ class Art extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final map = <String, Color>{'#SKY': ?sky, ...?tokens};
+    // Every scene picture may hold the sky placeholder (windows, doors):
+    // paint it, or flutter_svg refuses the whole file.
+    final map = <String, Color>{if (path.contains('/scenes/')) '#SKY': Paper.sky, '#SKY': ?sky, ...?tokens};
     if (map.isEmpty) {
       return SvgPicture.asset(path, fit: fit, excludeFromSemantics: true, errorBuilder: (_, _, _) => const SizedBox.expand());
     }
@@ -51,8 +53,18 @@ class TokenLoader extends SvgAssetLoader {
     return text;
   }
 
+  int get _tokensHash => Object.hashAll([for (final e in tokens.entries) e.key, for (final e in tokens.entries) e.value.toARGB32()]);
+
   @override
-  SvgCacheKey cacheKey(BuildContext? context) => SvgCacheKey(keyData: Object.hash(assetName, Object.hashAll([for (final e in tokens.entries) e.key, for (final e in tokens.entries) e.value.toARGB32()])), colorMapper: colorMapper, theme: getTheme(context));
+  SvgCacheKey cacheKey(BuildContext? context) => SvgCacheKey(keyData: Object.hash(assetName, _tokensHash), colorMapper: colorMapper, theme: getTheme(context));
+
+  // The picture must reload when the colours change (the base class
+  // compares the asset name only).
+  @override
+  bool operator ==(Object other) => other is TokenLoader && other.assetName == assetName && other._tokensHash == _tokensHash;
+
+  @override
+  int get hashCode => Object.hash(assetName, _tokensHash);
 }
 
 /// The child's paper puppet: body, head, face and hair laid over each
