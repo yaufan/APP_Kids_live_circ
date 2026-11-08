@@ -1,0 +1,53 @@
+name: little_life
+description: "小小生活家：2～5 歲的生活習慣遊戲。"
+publish_to: 'none'
+
+# The version (also in lib/app/version.dart and CHANGELOG.md; test/version_test.dart checks they agree).
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  audioplayers: ^6.8.1
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^3.4.3
+  flutter_svg: ^2.3.0
+  flutter_tts: ^4.2.5
+  go_router: ^18.1.1
+  path: ^1.9.1
+  path_provider: ^2.1.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sounds/
+    - assets/scenes/
+    - assets/art/avatar/
+    - assets/art/buddy/
+    - assets/art/clock/
+    - assets/art/props/
+    - assets/art/rewards/
+    - assets/art/scenes/living/
+    - assets/art/scenes/bedroom/
+    - assets/art/scenes/bathroom/
+    - assets/art/scenes/kitchen/
+    - assets/art/scenes/entrance/
+    - assets/art/scenes/balcony/
+    - assets/art/scenes/street/
+    - assets/art/scenes/park/
+    - assets/art/scenes/school/
+    - assets/art/scenes/market/
+    - assets/art/scenes/clinic/
+  fonts:
+    - family: Huninn
+      fonts:
+        - asset: assets/fonts/jf-openhuninn-2.1.ttf
