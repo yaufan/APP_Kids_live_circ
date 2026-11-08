@@ -68,12 +68,21 @@ class SceneView extends StatelessWidget {
         final w = sceneW * scale, h = sceneH * scale;
         Rect rectOf(SceneBox b, {bool feet = false}) => Rect.fromLTWH(b.left * w, (feet ? b.standTop : b.top) * h, b.w * w, b.h * h);
         final stand = rectOf(data.stand, feet: true);
-        final avatarH = stand.height, avatarW = avatarH * 200 / 260;
+        // The puppet fits inside the stand box (docs/art.md: the things
+        // keep out of it).
+        final avatarW = math.min(stand.width, stand.height * 200 / 260), avatarH = avatarW * 260 / 200;
         final avatarRect = Rect.fromLTWH(stand.center.dx - avatarW / 2, stand.bottom - avatarH, avatarW, avatarH);
         final buddyBox = rectOf(data.buddy, feet: true);
         final buddySide = math.min(buddyBox.width, buddyBox.height) * 1.15;
-        final buddyRect = Rect.fromLTWH(buddyBox.center.dx - buddySide / 2, buddyBox.bottom - buddySide, buddySide, buddySide);
+        var buddyRect = Rect.fromLTWH(buddyBox.center.dx - buddySide / 2, buddyBox.bottom - buddySide, buddySide, buddySide);
         final things = [...data.things]..sort((a, b) => a.z.compareTo(b.z));
+        // The buddy steps to the other side of the child when it would stand
+        // in front of the thing to tap.
+        final glowing = glow == null ? null : data.thing(glow!);
+        if (glowing != null && buddyRect.overlaps(rectOf(glowing.box))) {
+          final mirrored = 2 * stand.center.dx - buddyRect.center.dx;
+          buddyRect = Rect.fromCenter(center: Offset(mirrored.clamp(buddySide / 2, w - buddySide / 2), buddyRect.center.dy), width: buddySide, height: buddySide);
+        }
         final shownDecos = data.decos.take(decos.clamp(0, data.decos.length)).toList();
 
         Thing? hit(Offset p) {
@@ -153,11 +162,17 @@ class SceneView extends StatelessWidget {
                   onTapAvatar?.call();
                   return;
                 }
-                if (buddyRect.contains(p)) {
+                if (glowing != null && rectOf(glowing.box).contains(p)) {
+                  onTapThing?.call(glowing);
+                  return;
+                }
+                // The buddy is small and often stands in front of furniture:
+                // only its middle counts, the furniture gets the rest.
+                final t = hit(p);
+                if (buddyRect.deflate(buddyRect.width * 0.2).contains(p) || (t == null && buddyRect.contains(p))) {
                   onTapBuddy?.call();
                   return;
                 }
-                final t = hit(p);
                 if (t != null) onTapThing?.call(t);
               },
               onPointerCancel: (_) => down = null,

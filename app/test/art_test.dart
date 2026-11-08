@@ -4,7 +4,6 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_life/app/widgets.dart';
-import 'package:flutter/painting.dart';
 import 'package:little_life/core/content.dart';
 import 'package:little_life/core/scenes.dart';
 import 'package:little_life/core/steps.dart';

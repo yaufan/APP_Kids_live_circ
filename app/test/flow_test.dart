@@ -1,11 +1,7 @@
-import 'dart:math' as math;
-
-import 'package:flutter/material.dart' hide Step;
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_life/core/content.dart';
 import 'package:little_life/features/parent/parent_gate.dart';
-import 'package:little_life/features/play/play_screen.dart';
-import 'package:little_life/features/play/step_views.dart';
 
 import 'helpers.dart';
 
@@ -22,12 +18,12 @@ void main() {
       // Setup: a name, a look, a buddy.
       expect(app.location, '/setup');
       await tester.enterText(find.byKey(const ValueKey('name')), '小明');
-      await app.tapLabel('頭髮 2');
-      await app.tapLabel('衣服 4');
-      await app.tapLabel('選一隻小夥伴 cat');
+      await app.scrollTap('頭髮 2');
+      await app.scrollTap('衣服 4');
+      await app.scrollTap('選一隻小夥伴 cat');
       await app.settle(600);
       await shot('01_setup');
-      await app.tapLabel('開始過一天！', ms: 800);
+      await app.scrollTap('開始過一天！', ms: 800);
       expect(app.location, '/');
       expect(app.game.profile!.name, '小明');
       expect(app.game.profile!.buddy, Buddy.cat);
@@ -155,76 +151,3 @@ void main() {
   }
 }
 
-/// Plays every step of the little game on screen the way a finger would.
-Future<void> playThrough(TestApp app, {int? shotAt, Future<void> Function(String)? shot, String? name}) async {
-  final tester = app.tester;
-  var guard = 0;
-  var stepNo = 0;
-  while (find.byType(PlayScreen).evaluate().isNotEmpty && guard++ < 40) {
-    if (shotAt == stepNo && shot != null) await shot(name!);
-    stepNo++;
-    final tapView = find.byType(TapView);
-    final scrub = find.byType(ScrubView);
-    final drag = find.byType(DragView);
-    final choose = find.byType(ChooseView);
-    final hold = find.byType(HoldView);
-    if (tapView.evaluate().isNotEmpty) {
-      final step = tester.widget<TapView>(tapView).step;
-      final same = step.props.toSet().length == 1 && step.props.length > 1;
-      for (var i = 0; i < step.props.length; i++) {
-        final key = find.byKey(ValueKey('tap-${same ? math.min(i, step.props.length - 1) : i}'));
-        if (key.evaluate().isEmpty) break;
-        await tester.tap(key);
-        await app.settle(250);
-      }
-    } else if (scrub.evaluate().isNotEmpty) {
-      final box = tester.getRect(scrub);
-      final side = math.min(box.width, box.height);
-      final origin = Offset(box.center.dx - side / 2, box.center.dy - side / 2);
-      final g = await tester.startGesture(origin + Offset(side * 0.1, side * 0.2));
-      for (var row = 0; row < 8; row++) {
-        for (var col = 0; col <= 10; col++) {
-          final x = row.isEven ? col / 10 : 1 - col / 10;
-          await g.moveTo(origin + Offset(side * (0.08 + 0.84 * x), side * (0.15 + 0.7 * row / 7)));
-          await tester.pump(const Duration(milliseconds: 16));
-        }
-      }
-      await g.up();
-      await app.settle(500);
-    } else if (drag.evaluate().isNotEmpty) {
-      final step = tester.widget<DragView>(drag).step;
-      final filled = <String, int>{};
-      for (var i = 0; i < step.items.length; i++) {
-        final item = step.items[i];
-        final slot = step.slots.where((s) => s.takes(item) && (filled[s.id] ?? 0) < s.capacity).firstOrNull;
-        if (slot == null) continue;
-        filled[slot.id] = (filled[slot.id] ?? 0) + 1;
-        final from = find.byKey(ValueKey('item-$i'));
-        final to = find.byKey(ValueKey('slot-${slot.id}'));
-        if (from.evaluate().isEmpty || to.evaluate().isEmpty) continue;
-        final g = await tester.startGesture(tester.getCenter(from));
-        await tester.pump(const Duration(milliseconds: 30));
-        await g.moveTo(tester.getCenter(to));
-        await tester.pump(const Duration(milliseconds: 30));
-        await g.up();
-        await app.settle(250);
-      }
-      await app.settle(400);
-    } else if (choose.evaluate().isNotEmpty) {
-      final step = tester.widget<ChooseView>(choose).step;
-      final i = step.options.indexWhere((o) => step.good.contains(o.prop));
-      await tester.tap(find.byKey(ValueKey('choice-$i')));
-      await app.settle(900);
-    } else if (hold.evaluate().isNotEmpty) {
-      final step = tester.widget<HoldView>(hold).step;
-      final g = await tester.startGesture(tester.getCenter(find.byKey(const ValueKey('hold'))));
-      await tester.pump(Duration(milliseconds: step.seconds * 1000 + 200));
-      await g.up();
-      await app.settle(600);
-    } else {
-      await app.settle(400);
-    }
-  }
-  // The sticker shows, then the room comes back.
-  await app.settle(2000);
-}
