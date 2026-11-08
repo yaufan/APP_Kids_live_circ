@@ -11,15 +11,17 @@ jf open-huninn from a sibling app's checkout.
                        box, a window with the morning sun) in three styles:
                        A 木頭玩具屋風, B 立體書風, C 色鉛筆塗畫風
     1_取名選角色.png   first launch: the name box, hair / skin / shirt / buddy choices, the doll updates
-    2_客廳和時鐘.png   the home: the dollhouse with five rooms, the clock says 刷牙, footprints to the bathroom
+    2_客廳和時鐘.png   the home: the living room fills the screen under the clock (one room at a time), the clock says 刷牙,
+                       the stairs and the 廁所 button glow; a strip of six room buttons at the bottom
     3_調時間.png       the clock enlarged: a finger drags the hand from 牙刷 to 碗
     4_刷牙.png         bathroom mini-game: brushing the big open mouth, bubbles as progress
-    5_想上廁所.png     the random need: the child squirms, a water drop, the way to the toilet lights up
+    5_想上廁所.png     the random need: the child squirms, a water drop, footprints to the glowing stairs
     6_吃飯.png         kitchen: a plate with four slots, foods to drag in, the puppy's own bowl
-    7_睡覺.png         bedroom at night: the blanket is pulled up, the rest of the house is dark
+    7_睡覺.png         bedroom at night: the blanket is pulled up; a small inset shows the whole house dark
     8_貼紙表.png       the good-habits sticker chart and the puppy's reward
     9_家長模式.png     parents' settings
-    contact_sheet.png  screens 1-9 small, with titles
+    10_小街 11_幼兒園 12_超市 13_陽台家事 14_發生事情   the street, the kindergarten, the supermarket, chores, events
+    contact_sheet.png  screens 1-14 small, with titles
 
 Style A 「木頭玩具屋風」 (screens 1-9) is a wooden dollhouse. Every piece goes through one SVG filter
 (wood_f): fractal noise stretched along the grain darkens and lightens the paint in streaks, a blurred
@@ -1346,23 +1348,134 @@ def render(html, out, w, h, scale):
         im.quantize(colors=256, method=Image.Quantize.MEDIANCUT, kmeans=2, dither=Image.Dither.FLOYDSTEINBERG).save(out, optimize=True)
 
 
-# ================================================================ SCREEN 2: the home and the clock
-def screen_home():
+# ================================================================ ONE ROOM FILLS THE SCREEN (screens 2, 3, 5)
+ROOM_STRIP = [("陽台", lambda: place(0, 10, .5, plant)), ("廚房", lambda: place(0, 13, .42, fridge)), ("客廳", lambda: place(0, 9, .3, sofa, 84, TEAL)),
+              ("房間", lambda: place(0, 10, .32, bed, 96)), ("廁所", lambda: place(0, 12, .5, toilet)), ("門口", lambda: place(0, 14, .38, door))]
+
+
+def room_strip(y=772, selected="客廳", glow=None, scale=1.0, cx=195, labels=True):
+    """The row of little room buttons at the bottom: tap one to go there; the one to go to glows and bounces."""
+    o = []
+    gap = 60 * scale
+    r = 22 * scale
+    x0 = cx - 2.5 * gap
+    for i, (name, fn) in enumerate(ROOM_STRIP):
+        x = x0 + i * gap
+        yy = y - (8 * scale if name == glow else 0)
+        if name == glow:
+            o.append(f'<circle cx="{x:.1f}" cy="{yy:.1f}" r="{r * 1.5:.1f}" fill="{rg([(0, "#FFF4B0"), (.55, "#FFE26B", .9), (1, "#FFE26B", 0)])}"/>')
+        o.append(wbtn(x, yy, r, CREAM if name == selected else WHITE, sh=1 if name != glow else 2))
+        o.append(place(x, yy, scale, fn))
+        if name == selected:
+            o.append(f'<circle cx="{x:.1f}" cy="{yy:.1f}" r="{r + 3.5 * scale:.1f}" fill="none" stroke="{TEAL}" stroke-width="{3.5 * scale:.1f}"/>')
+        if name == glow:
+            o.append(f'<circle cx="{x:.1f}" cy="{yy:.1f}" r="{r + 3.5 * scale:.1f}" fill="none" stroke="{YEL}" stroke-width="{3.5 * scale:.1f}"/>')
+            o.append(sparkle(x + r * .9, yy - r * .95, 6 * scale, YEL) + sparkle(x - r * 1.05, yy - r * .5, 4 * scale, PINK))
+        if labels:
+            o.append(tx(x, yy + r + 14 * scale, name, 10.5 * scale, INK if name in (selected, glow) else SOFT))
+    return "".join(o)
+
+
+def edge_arrow(x, y, label, direction=-1):
+    """A wooden tab at the screen's edge: tap to walk to the next room."""
+    o = [paint(R(x - 22, y - 26, 44, 52, 14), WOOD2, sh=2)]
+    o.append(i_arrow(x + direction * 2, y - 4, 1.0, WHITE, 180 if direction < 0 else 0))
+    o.append(tx(x, y + 20, label, 11, INK))
+    return "".join(o)
+
+
+def living_room_big(x=10, y=236, w=370, h=530, sky="morning", rain=False, glow_stairs=False, dimmed=False):
+    """The living room filling the screen: the frame, the wall, the furniture and the stairs on the right."""
+    o = [wood(R(x, y, w, h, 16), WOOD, grain=.45, sh=3)]
+    fy = y + h - 62
+    o.append(f'<rect x="{x + 10}" y="{y + 10}" width="{w - 20}" height="{h - 20}" rx="10" fill="{ROOM_WALL["living"]}"/>')
+    o.append(f'<rect x="{x + 10}" y="{y + 10}" width="{w - 20}" height="{h - 20}" rx="10" fill="#000" opacity=".05" filter="{wood_f(.5, 0, .02)}"/>')
+    o.append(f'<rect x="{x + 10}" y="{fy}" width="{w - 20}" height="{h - 10 - (fy - y)}" fill="{WOOD2}" filter="{wood_f(.5, 0, .05)}"/>')
+    o.append(stroke(f"M{x + 10},{fy + 16} H{x + w - 10} M{x + 10},{fy + 36} H{x + w - 10}", WALNUT, 1, op=.3))
+    o.append(place(x + w * .5, fy - 2, 1.5, rug, 120, PINK))
+    o.append(place(x + 96, y + 190, 1.5, window, 64, 50, sky, False, 0, rain))
+    o.append(place(x + 238, y + 118, 1.25, picture_frame, LILAC))
+    o.append(place(x + 302, y + 182, 1.2, lambda: paint(R(-16, -2, 32, 4, 2), WOOD2) + place(0, -2, 1.0, phone)))
+    o.append(place(x + 130, fy, 1.5, sofa, 84, TEAL))
+    o.append(place(x + 36, fy, 1.5, lamp))
+    o.append(place(x + 54, fy, 1.2, toybox))
+    o.append(place(x + 60, y + 92, 1.1, lambda: paint(R(-30, -2, 60, 5, 2.5), WOOD2) + place(-14, -2, .7, plant) + place(12, -2, .8, storybook)))
+    o.append(heart(x + 300, y + 70, 7, PINK) + flat(star_g(7, x + 330, y + 96), YEL) + sparkle(x + 150, y + 60, 6, YEL))
+    # the stairs up to 房間 and 廁所
+    sx = x + w - 10 - 70
+    if glow_stairs:
+        o.append(f'<rect x="{sx - 8}" y="{fy - 82}" width="86" height="90" rx="12" fill="#FFE26B" opacity=".75" filter="{blur(8)}"/>')
+    o.append(f'<rect x="{sx}" y="{y + 10}" width="70" height="{fy - y - 10}" fill="#000" opacity=".06"/>')
+    o.append(place(sx, fy, 1.4, stairs, True, 5, 10))
+    o.append(paint(R(sx + 66, fy - 110, 5, 110, 2.5), WOOD2, sh=0) + paint(R(sx - 2, fy - 90, 74, 5, 2.5), WOOD2, sh=0))
+    o.append(tx(sx + 36, fy - 100, "上樓", 11, INK))
+    if glow_stairs:
+        o.append(place(sx + 34, fy - 130, 1.0, lambda: f'<circle r="16" fill="{YEL}" opacity=".95"/>' + i_arrow(0, 0, .8, "#FFFFFF", -90)))
+    if dimmed:
+        o.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="16" fill="#2A1E16" opacity=".55"/>')
+    return "".join(o)
+
+
+def home_frame(hand=1, sky="morning"):
     o = [wallpaper()]
-    o.append(shelf(802))
-    o.append(lock_chip(14, 14))
-    o.append(sticker_btn(322, 30))
-    o.append(day_chip(14, 56, "星期三", "sun", 92))
-    o.append(clock(195, 124, 92, hand=1))
-    o.append(house(sky="morning"))
-    lx, ly, lw, lh = ROOM_BOX["living"]
-    fy = ly + lh - 12
-    o.append(footprints([(152, fy - 4), (226, fy - 4), (270, fy - 46), (276, ROOMS_Y[0][1] - 10), (248, ROOMS_Y[0][1] - 14)], ORA, 9, .9))
-    o.append(place(118, fy, .82, peg_doll, 0, 0, 0, "smile"))
-    o.append(place(170, fy, .7, puppy, "smile", -1))
-    o.append(say(118, ly + 14, 162, 46, "小明，該刷牙囉！", "down", 140, 13.5))
-    o.append(heart(66, 500, 7, PINK) + sparkle(96, 482, 6, YEL) + sparkle(300, 700, 5, PINK))
-    o.append(sparkle(292, 60, 7, YEL, .9) + sparkle(120, 206, 5, PINK, .9) + sparkle(284, 202, 4, YEL))
+    o.append(lock_chip(14, 14) + sticker_btn(322, 30) + day_chip(14, 56, "星期三", "sun", 92))
+    o.append(clock(195, 124, 92, hand=hand))
+    return o
+
+
+def screen_home():
+    o = home_frame(1)
+    fy = 236 + 530 - 62
+    o.append(living_room_big(glow_stairs=True))
+    o.append(place(168, fy, 2.2, peg_doll, 0, 0, 0, "smile", look=2))
+    o.append(place(258, fy, 1.45, puppy, "smile", 1))
+    o.append(say(130, 396, 206, 52, "小明，該刷牙囉！", "down", 190, 16))
+    o.append(edge_arrow(30, 300, "廚房", -1) + edge_arrow(360, 300, "門口", 1))
+    o.append(heart(236, 560, 8, PINK) + sparkle(112, 540, 7, YEL) + sparkle(322, 520, 6, PINK) + sparkle(292, 60, 7, YEL, .9))
+    o.append(room_strip(790, "客廳", "廁所"))
+    return page("".join(o), "#F6EEDF")
+
+
+# ================================================================ SCREEN 3: turning the clock
+def screen_clock():
+    o = home_frame(1)
+    fy = 236 + 530 - 62
+    o.append(living_room_big())
+    o.append(place(168, fy, 2.2, peg_doll, 0, 0, 0, "smile") + place(258, fy, 1.45, puppy, "smile", 1))
+    o.append(room_strip(790, "客廳", None))
+    o.append(f'<rect width="{W}" height="{H}" fill="#2A1E16" opacity=".55"/>')
+    cx, cy, r = 195, 300, 150
+    o.append(f'<circle cx="{cx}" cy="{cy}" r="{r + 30}" fill="#FFF3C4" opacity=".35" filter="{blur(14)}"/>')
+    o.append(clock(cx, cy, r, hand=2, glow=True, labels=True, isize=1.05, drag_to=12))
+    a0, a1 = math.radians(-30), math.radians(30)
+    rr = r * .5 + 24
+    o.append(f'<path d="M{cx + rr * math.cos(a0):.1f},{cy + rr * math.sin(a0):.1f} A{rr},{rr} 0 0 1 {cx + rr * math.cos(a1):.1f},{cy + rr * math.sin(a1):.1f}" '
+             f'fill="none" stroke="{WHITE}" stroke-width="4" stroke-dasharray="6 7" stroke-linecap="round" opacity=".9"/>')
+    o.append(i_arrow(cx + rr * math.cos(a1) - 2, cy + rr * math.sin(a1) + 10, .8, WHITE, 100))
+    o.append(finger(cx + (r * .5 + 10) * math.cos(math.radians(12)), cy + (r * .5 + 10) * math.sin(math.radians(12)), -20))
+    o.append(paint(R(60, 486, 270, 92, 20), WHITE, sh=2, grain=.05))
+    o.append(place(118, 566, .72, window, 60, 46, "morning") + tx(118, 506, "早上", 12.5, SOFT))
+    o.append(i_arrow(195, 536, 1.1, WOOD2))
+    o.append(place(272, 566, .72, window, 60, 46, "noon") + tx(272, 506, "中午", 12.5, SOFT))
+    o.append(say(40, 606, 310, 56, "要跳到吃早餐嗎？", "up", 195, 19))
+    o.append(wbtn(140, 724, 36, GRN, i_check(140, 724, 1.5, "#FFFFFF")) + tx(140, 782, "好", 15, WHITE))
+    o.append(wbtn(250, 724, 36, GREY, stroke("M238,712 L262,736 M262,712 L238,736", "#FFFFFF", 5)) + tx(250, 782, "不要", 15, WHITE))
+    return page("".join(o), "#F6EEDF")
+
+
+# ================================================================ SCREEN 5: "I need to pee!"
+def screen_pee():
+    o = home_frame(4, "noon")
+    fy = 236 + 530 - 62
+    o.append(living_room_big(sky="noon", glow_stairs=True))
+    o.append(footprints([(214, fy - 6), (262, fy - 6), (300, fy - 10), (324, fy - 30), (350, fy - 56)], ORA, 7, 1.2, glow=True))
+    o.append(place(150, fy, 2.2, peg_doll, 0, 0, 0, "worry", squirm=True))
+    o.append(stroke("M72,596 Q62,612 72,628 M232,596 Q242,612 232,628", "#8A7A6A", 3))
+    o.append(place(214, fy - 222, 1.9, i_drop, 1.0, BLUE))
+    o.append(place(250, fy, 1.4, puppy, "smile", -1))
+    o.append(say(120, 396, 176, 52, "我想尿尿！", "down", 170, 17))
+    o.append(edge_arrow(30, 300, "廚房", -1) + edge_arrow(360, 300, "門口", 1))
+    o.append(room_strip(790, "客廳", "廁所"))
     return page("".join(o), "#F6EEDF")
 
 
@@ -1415,36 +1528,6 @@ def screen_name():
         o.append(tx(x, 676, name, 12.5, INK))
     o.append(wpill(195, 752, 220, 64, GRN, "開始", 26, i_arrow(262, 752, 1.1, "#FFFFFF"), tdx=-18))
     return page("".join(o), "#FBF1E2")
-
-
-# ================================================================ SCREEN 3: turning the clock
-def screen_clock():
-    o = [wallpaper(), shelf(802)]
-    o.append(lock_chip(14, 14) + sticker_btn(322, 30) + day_chip(14, 56, "星期三", "sun", 92))
-    o.append(clock(195, 124, 92, hand=1))
-    o.append(house(sky="morning"))
-    lx, ly, lw, lh = ROOM_BOX["living"]
-    o.append(place(118, ly + lh - 12, .82, peg_doll, 0, 0, 0, "smile") + place(170, ly + lh - 12, .7, puppy, "smile", -1))
-    o.append(f'<rect width="{W}" height="{H}" fill="#2A1E16" opacity=".55"/>')
-    cx, cy, r = 195, 300, 150
-    o.append(f'<circle cx="{cx}" cy="{cy}" r="{r + 30}" fill="#FFF3C4" opacity=".35" filter="{blur(14)}"/>')
-    o.append(clock(cx, cy, r, hand=2, glow=True, labels=True, isize=1.05, drag_to=12))
-    # the hand's way from the toothbrush to the bowl
-    a0, a1 = math.radians(-30), math.radians(30)
-    rr = r * .5 + 24
-    o.append(f'<path d="M{cx + rr * math.cos(a0):.1f},{cy + rr * math.sin(a0):.1f} A{rr},{rr} 0 0 1 {cx + rr * math.cos(a1):.1f},{cy + rr * math.sin(a1):.1f}" '
-             f'fill="none" stroke="{WHITE}" stroke-width="4" stroke-dasharray="6 7" stroke-linecap="round" opacity=".9"/>')
-    o.append(i_arrow(cx + rr * math.cos(a1) - 2, cy + rr * math.sin(a1) + 10, .8, WHITE, 100))
-    o.append(finger(cx + (r * .5 + 10) * math.cos(math.radians(12)), cy + (r * .5 + 10) * math.sin(math.radians(12)), -20))
-    # the window light that goes with the time
-    o.append(paint(R(60, 486, 270, 92, 20), WHITE, sh=2, grain=.05))
-    o.append(place(118, 566, .72, window, 60, 46, "morning") + tx(118, 496 + 10, "早上", 12.5, SOFT))
-    o.append(i_arrow(195, 536, 1.1, WOOD2))
-    o.append(place(272, 566, .72, window, 60, 46, "noon") + tx(272, 506, "中午", 12.5, SOFT))
-    o.append(say(40, 606, 310, 56, "要跳到吃早餐嗎？", "up", 195, 19))
-    o.append(wbtn(140, 724, 36, GRN, i_check(140, 724, 1.5, "#FFFFFF")) + tx(140, 782, "好", 15, WHITE))
-    o.append(wbtn(250, 724, 36, GREY, stroke("M238,712 L262,736 M262,712 L238,736", "#FFFFFF", 5)) + tx(250, 782, "不要", 15, WHITE))
-    return page("".join(o), "#F6EEDF")
 
 
 # ================================================================ SCREEN 4: brushing teeth
@@ -1514,24 +1597,6 @@ def screen_brush():
     o.append(place(70, 762, 1.0, toothpaste))
     o.append(place(320, 762, 1.0, cup, YEL))
     return page("".join(o), "#E4F3F9")
-
-
-# ================================================================ SCREEN 5: "I need to pee!"
-def screen_pee():
-    o = [wallpaper(), shelf(802)]
-    o.append(lock_chip(14, 14) + sticker_btn(322, 30) + day_chip(14, 56, "星期三", "sun", 92))
-    o.append(clock(195, 124, 92, hand=4))
-    o.append(house(sky="noon", dim=("bed", "door", "kitchen", "balcony"), highlight="bath"))
-    lx, ly, lw, lh = ROOM_BOX["living"]
-    fy = ly + lh - 12
-    o.append(footprints([(152, fy - 4), (226, fy - 4), (270, fy - 46), (276, ROOMS_Y[0][1] - 10), (248, ROOMS_Y[0][1] - 14)], ORA, 9, .9, glow=True))
-    o.append(place(118, fy, .82, peg_doll, 0, 0, 0, "worry", squirm=True))
-    o.append(stroke("M86,560 Q80,566 86,572 M150,560 Q156,566 150,572", "#8A7A6A", 2.2))
-    o.append(place(142, fy - 108, 1.0, i_drop, 1.0, BLUE))
-    o.append(place(176, fy, .7, puppy, "smile", -1))
-    o.append(say(150, ly + 10, 132, 46, "我想尿尿！", "down", 170, 14.5))
-    o.append(place(284, ROOMS_Y[0][0] + 20, 1.0, lambda: f'<circle r="16" fill="{YEL}" opacity=".95"/>' + i_arrow(0, 0, .8, "#FFFFFF", 90)))
-    return page("".join(o), "#F6EEDF")
 
 
 # ================================================================ SCREEN 6: mealtime
@@ -2168,7 +2233,7 @@ def living_scene(x, y, w=330, h=240):
     """The living room: the clock on the wall, the child and the puppy, the sofa, the toy box, the morning window.
     Drawn with whatever paint()/wood()/flat()/stroke() do for the current STYLE."""
     o = []
-    fy = y + h - 26
+    fy = y + h - 40
     if STYLE == "paper":
         # the open book under the scene: two pages that tilt towards the spine
         o.append(f'<path d="M{x - 8},{y + h + 10} L{x + w / 2},{y + h + 34} L{x + w + 8},{y + h + 10} L{x + w + 8},{y + h - 50} L{x + w / 2},{y + h - 26} L{x - 8},{y + h - 50}Z" fill="#F6ECDC" stroke="#D9C8B0" stroke-width="1.5"/>')
@@ -2181,6 +2246,7 @@ def living_scene(x, y, w=330, h=240):
     o.append(wood(R(x, y, w, h, 14), WOOD2, grain=.42, sh=2))
     o.append(flat(R(x + 8, y + 8, w - 16, h - 16, 9), wall))
     o.append(flat(R(x + 8, fy, w - 16, h - 8 - (fy - y), 4), floor))
+    o.append(room_strip(y + h - 14, "客廳", "廁所", .5, x + w / 2, labels=False))
     o.append(place(x + 86, y + 76, .95, window, 70, 54, "morning", True, .2))
     o.append(place(x + w - 74, y + 84, .68, clock, 0, 0, 56, 1, False))
     o.append(place(x + 72, fy, 1.05, sofa, 84, TEAL))
