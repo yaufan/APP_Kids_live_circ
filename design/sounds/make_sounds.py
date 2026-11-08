@@ -5,7 +5,7 @@ the first phrase of Beethoven's "Für Elise", as Taiwan's garbage trucks do;
 Beethoven's melody has been public domain for about two hundred years, and
 the music box playing it is synthesized here).
 
-- Music (WAV, 16,000 Hz, seamless loops of 19 to 27 s): one tune for each
+- Music (WAV, 16,000 Hz, seamless loops of 21 to 24 s): one tune for each
   time of the game day and one for each place outside the house, and a
   lullaby for the rest screen. All toy-like and simple (music box,
   xylophone, kalimba, soft bells, ukulele plucks), each in its own key and
@@ -35,6 +35,7 @@ sound.
 
     python3 design/sounds/make_sounds.py                  # writes app/assets/sounds/*.wav
     python3 design/sounds/make_sounds.py preview OUT.m4a  # and a listening preview
+    python3 design/sounds/make_sounds.py tap yum ...       # only these (while working on one)
 """
 import os
 import pathlib
@@ -800,10 +801,10 @@ def music_night():
         lead.append((at, 0.6 * music_box(NOTE[n], max(1.4, d + 0.8))))
     for b, length, chord in spans(bars, 6):
         c = chord_tones(chord, "Db3")
-        band.append((b * eighth, 0.2 * harp(c[0], 1.6)))
-        band.append(((b + 3) * eighth, 0.14 * harp(c[2], 1.4)))
-        band.append(((b + 4) * eighth, 0.09 * harp(2 * c[0], 1.2)))
-        band.append((b * eighth, 0.14 * pad(chord, length * eighth, low="Db3")))
+        band.append((b * eighth, 0.36 * harp(c[0], 1.6)))
+        band.append(((b + 3) * eighth, 0.26 * harp(c[2], 1.4)))
+        band.append(((b + 4) * eighth, 0.18 * harp(2 * c[0], 1.2)))
+        band.append((b * eighth, 0.24 * pad(chord, length * eighth, low="Db3")))
         band.append((b * eighth, 0.4 * pluck_bass(NOTE[above(root_of(chord), "Db2")], 1.6)))
     return Tune(len(bars) * 6 * eighth, lead, band, 3200)
 
@@ -977,9 +978,9 @@ def music_rest():
         lead.append((at, 0.6 * music_box(NOTE[n] * 2, max(1.6, d + 1.0))))
     for b, length, chord in spans(bars, 6):
         c = chord_tones(chord, "Ab2")
-        band.append((b * eighth, 0.22 * harp(c[0], 2.0)))
-        band.append(((b + 3) * eighth, 0.12 * harp(c[2] * 2, 1.6)))
-        band.append((b * eighth, 0.16 * pad(chord, length * eighth, low="Ab3")))
+        band.append((b * eighth, 0.4 * harp(c[0], 2.0)))
+        band.append(((b + 3) * eighth, 0.24 * harp(c[2] * 2, 1.6)))
+        band.append((b * eighth, 0.26 * pad(chord, length * eighth, low="Ab3")))
     return Tune(len(bars) * 6 * eighth, lead, band, 3000)
 
 
@@ -1842,7 +1843,13 @@ def fx_ahh():
 
 def fx_heartbeat():
     """The stethoscope: lub-dub, two soft thumps."""
-    return carry(place(0.6, [(0, thud(95, 55, 0.2, 0.05)), (0.17, 0.7 * thud(85, 50, 0.2, 0.045))]), 0.4, lo=400, hi=2000)
+    rng = np.random.default_rng(394)
+    parts = []
+    for at, g, f in ((0, 1.0, 110), (0.17, 0.75, 100)):
+        n = int(0.08 * SR)
+        pat = norm(lowpass(rng.standard_normal(n), 700)) * np.exp(-np.arange(n) / SR / 0.012) * env(n, 0.001, 0.03)
+        parts += [(at, 0.5 * g * thud(f, 55, 0.2, 0.05)), (at, 0.8 * g * pat)]
+    return carry(place(0.6, parts), 1.0, lo=300, hi=1500, drive=3)
 
 
 def fx_breath():
@@ -1868,7 +1875,7 @@ def fx_medicine():
     parts = []
     for at in (0, 0.16, 0.32):
         parts.append((at, crackle(rng, 0.1, 14, 1500, 5000, (0.003, 0.008)) * np.exp(-np.arange(int(0.1 * SR)) / SR / 0.04)))
-        parts.append((at, 0.3 * knock(rng, 1200, 0.06, 250, 0.012)))
+        parts.append((at, 0.15 * knock(rng, 1200, 0.06, 250, 0.012)))
     return place(0.55, parts)
 
 
@@ -1986,12 +1993,13 @@ def fx_earthquake():
     n = len(t)
     shape = np.sin(np.pi * t / d) ** 1.4
     rumble = norm(lowpass(rng.standard_normal(n), 110)) * (0.7 + 0.3 * np.sin(2 * np.pi * 4 * t))
-    x = 0.8 * carry(rumble, 0.5, lo=400, hi=1800) * shape
+    shake = norm(bandpass(rng.standard_normal(n), 300, 1200)) * (0.5 + 0.5 * np.sin(2 * np.pi * 11 * t) ** 2)
+    x = (0.8 * carry(rumble, 0.9, lo=300, hi=1800, drive=3) + 0.3 * shake) * shape
     for _ in range(14):
         at = rng.uniform(0.2, 1.2)
         k = knock(rng, rng.uniform(1500, 3200), 0.05, 300, 0.008)
         i = int(at * SR)
-        x[i:i + len(k)] += rng.uniform(0.1, 0.25) * k * shape[i]
+        x[i:i + len(k)] += rng.uniform(0.2, 0.45) * k * shape[i]
     return x
 
 
@@ -2003,7 +2011,7 @@ def fx_thunder():
     n = len(t)
     roll = norm(lowpass(rng.standard_normal(n), 180)) * (0.6 + 0.4 * norm(lowpass(rng.standard_normal(n), 5)) ** 2)
     shape = ease(t / 0.15) * np.exp(-t / 0.5)
-    return carry(roll * shape, 0.4, lo=400, hi=1500)
+    return carry(roll * shape, 0.8, lo=300, hi=1500, drive=3)
 
 
 def fx_rain():
@@ -2032,7 +2040,7 @@ def fx_wind():
 def fx_toy_drop():
     """A toy dropped into the box: a wooden clunk and a little bounce."""
     rng = np.random.default_rng(413)
-    return place(0.4, [(0, 0.8 * knock(rng, 650, 0.1, 120, 0.03, second=2.2)), (0, 0.5 * thud(240, 150, 0.1, 0.02)), (0.16, 0.4 * knock(rng, 750, 0.08, 120, 0.02, second=2.2))])
+    return place(0.4, [(0, 0.8 * knock(rng, 650, 0.12, 50, 0.04, second=2.2)), (0, 0.5 * carry(thud(240, 150, 0.1, 0.02), 0.5)), (0.16, 0.4 * knock(rng, 750, 0.1, 50, 0.03, second=2.2))])
 
 
 def fx_broom():
@@ -2062,7 +2070,7 @@ def fx_wipe():
 def fx_peg():
     """A clothes peg clipped on: a wooden snap."""
     rng = np.random.default_rng(417)
-    return mix(0.8 * knock(rng, 1900, 0.06, 250, 0.01), 0.5 * knock(rng, 700, 0.07, 140, 0.02))
+    return mix(0.8 * knock(rng, 1900, 0.06, 200, 0.01), 0.5 * knock(rng, 700, 0.08, 60, 0.025))
 
 
 def fx_watering():
@@ -2091,7 +2099,10 @@ def fx_feed():
 def fx_trash():
     """The rubbish bag put out: a soft thud and a rustle of plastic."""
     rng = np.random.default_rng(420)
-    return place(0.45, [(0, 0.8 * carry(thud(200, 80, 0.2, 0.04), 0.4, lo=400, hi=2000)), (0.02, 0.4 * crackle(rng, 0.35, 60, 1500, 7000) * np.exp(-t_of(0.35) / 0.12))])
+    n = int(0.1 * SR)
+    pat = norm(lowpass(rng.standard_normal(n), 900)) * np.exp(-np.arange(n) / SR / 0.015) * env(n, 0.001, 0.03)
+    return place(0.45, [(0, 0.45 * carry(thud(220, 90, 0.2, 0.04), 1.0, lo=300, hi=1800, drive=3)), (0, 0.8 * pat),
+                        (0.02, 0.6 * crackle(rng, 0.35, 60, 1500, 7000) * np.exp(-t_of(0.35) / 0.12))])
 
 
 def fx_recycle():
