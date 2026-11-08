@@ -13,13 +13,25 @@
 kind：`dog`、`cat`、`rabbit`、`duck`；pose：`stand`、`sleep`、`happy`（跳起來）、`eat`。
 ### 時鐘（`clock/`）
 - `face.svg`（木紋底的鐘面，有小臉）300×300，`hand.svg` 60×300（指針，從中心往上）。
-- 八個時段圖案，各 100×100，有小臉：`t_wake`（太陽）、`t_teeth`（牙刷）、`t_meal`（碗）、`t_school`（書包）、`t_play`（球）、`t_chore`（掃把）、`t_bath`（浴缸）、`t_sleep`（月亮）。
+- 十三個時段圖案，各 100×100，有小臉：`t_wake`（太陽）、`t_teeth`（牙刷）、`t_dress`（上衣）、`t_meal`（碗）、`t_school`（書包）、`t_wash`（洗手的泡泡手）、`t_play`（球）、`t_chore`（掃把）、`t_bath`（浴缸）、`t_sleep`（月亮）、`t_market`（推車）、`t_cook`（鍋子）、`t_nap`（枕頭）。時鐘的圈不是真的時間：一天的事照順序繞一圈，連續同一個圖案的事共用一個位置。
 - 天氣：`w_sun`、`w_rain`、`w_cold`（雪花）、`w_hot`（太陽加汗）、`w_storm`（颱風雲）各 100×100。
 ### 場景（`scenes/<場景>/`）
 場景：`living` 客廳、`bedroom` 房間、`bathroom` 廁所、`kitchen` 廚房、`entrance` 門口、`balcony` 陽台、`street` 小街、`park` 公園、`school` 幼兒園、`market` 超市、`clinic` 診所。
 - `bg.svg`，`viewBox="0 0 600 800"`：牆、地板、窗外天空（天空留白給程式換顏色的地方用 `#SKY` 當填色，程式會替換成當時的天色），不含可以點的東西。
 - 每樣東西一個檔 `<id>.svg`，透明底，viewBox 的寬高比和它的框一樣，剛好畫滿框。有變化的東西用 `<id>_<state>.svg`（例如 `curtain_open`、`curtain_closed`、`lamp_on`、`lamp_off`、`plant_wilt`、`toybox_full`）。
 - 裝飾品（貼紙表集滿送的）：`deco_<n>.svg`，每個場景 3 個。
+- 每個場景一定要有的東西（程式會找這些 id）：
+  - `living`：`sofa`、`toybox`（`""`/`full`）、`phone`、`window`、`stairs`、`lamp`（`on`/`off`）、`rug`、`table`、`shelf`、`plant`（`""`/`wilt`）、`tv`、`picture`。
+  - `bedroom`：`bed`、`wardrobe`、`nightlight`（`on`/`off`）、`curtain`（`open`/`closed`，後面是窗，用 `#SKY`）、`book`、`height`（身高尺）、`rug`、`toybox_small`。
+  - `bathroom`：`sink`、`mirror`、`toilet`（`closed`/`open`）、`bathtub`、`towel`、`toothbrush_cup`、`window`。
+  - `kitchen`：`fridge`、`table`、`sink`、`stove`、`cupboard`、`window`、`chair`。
+  - `entrance`：`door`、`shoerack`、`bag`、`umbrella`、`helmet`、`mat`。
+  - `balcony`：`plants`（`""`/`wilt`）、`rack`（曬衣架，`""`/`empty`）、`bowl`（小夥伴的碗）、`bins`（垃圾桶和回收桶）、`railing`、`watering_can`。
+  - `street`：`home`（自己家的門）、`park`、`school`、`market`、`clinic`（四個地方的門面，有招牌圖案）、`traffic_light`、`bus`。
+  - `park`：`slide`、`swing`、`sandbox`、`ball`、`bench`、`tree`、`flower`。
+  - `school`：`cubby`（三格、記號是星星／愛心／花）、`teacher`、`classmate_1`、`classmate_2`、`mat`、`blackboard`、`toyshelf`。
+  - `market`：`shelf`、`cart`、`cashier`、`fridge`（冷藏櫃）、`sign`、`basket`。
+  - `clinic`：`doctor`、`desk`、`bed`、`poster`、`scale`、`plant`。
 ### 小遊戲的道具（`props/`），各 100×100 除非另外寫
 刷牙：`toothbrush`、`toothpaste`、`cup`、`mouth_big`（400×300，張嘴，上下排牙齒分清楚，牙齒上有可以蓋掉的髒點用 `#DIRT` 填色）。
 洗手洗澡：`soap`、`tap_on`、`tap_off`、`towel`、`bubble`、`hairdryer`、`bathtub_full`（300×200）。
@@ -32,9 +44,10 @@ kind：`dog`、`cat`、`rabbit`、`duck`；pose：`stand`、`sleep`、`happy`（
 幼兒園：`cubby`（自己的格子，上面有角色的記號）、`teacher`（200×260）、`classmate_<n>`（1～3，200×260）、`mat`（午睡墊）、`snack_plate`。
 超市：`cart`（200×200）、`shelf`（300×200）、`cashier`（200×260）、`list`（購物清單，三格）、`bag_shop`。
 診所：`thermometer`、`stethoscope`、`syringe`（圓圓的、不可怕）、`medicine`、`doctor`（200×260）、`sticker_brave`。
+小遊戲另外會用到：`blanket`、`blanket_folded`、`button`、`umbrella`、`hands_clap`、`footprint`、`shoe_rack`、`table_top`（桌面 300×150）、`buddy_bowl`、`kibble_bag`、`temp_hot`、`temp_warm`、`temp_cold`（三杯水，紅／剛好／藍）、`lotion`、`hands`（一雙手 200×150）、`pot`（鍋子）、`basket`、`shovel`、`dirt`（髒點）、`cubby_1`、`cubby_2`、`cubby_3`（格子，記號星星／愛心／花；取代 `cubby`）、`book_open`。
 偶爾的事：`drop`（想尿尿的小水滴）、`tummy`（咕嚕）、`yawn`（哈欠的 Z）、`sweat`、`shiver`、`tissue`、`bandage`、`mosquito`、`flashlight`、`doorbell`、`phone_ring`、`grandma`（200×260）、`mailman`（200×260）、`package`、`table_hide`（桌子底下躲的樣子 300×200）、`breath_1`～`breath_3`（深呼吸的三個泡泡）。
 ### 獎勵（`rewards/`）
-- `sticker_<task>.svg` 每件事一張貼紙（圓形 200×200，和時段圖案同一套可愛風）；`chart.svg` 貼紙表的木板底 600×800。
+- `sticker_<task>.svg` 每件事一張貼紙，task 是程式的名字：`wake teeth dress breakfast schoolGo school home park tidy chore dinner bath teethNight sleep market cook nap`（圓形 200×200，和時段圖案同一套可愛風）；`chart.svg` 貼紙表的木板底 600×800。
 - `house_small.svg` 600×500：整棟房子的小圖（只在貼紙表和睡覺動畫用），房間用 `#ROOM_<id>` 填色，程式變亮變暗。
 - `height.svg` 100×600 身高尺。
 
@@ -53,7 +66,8 @@ kind：`dog`、`cat`、`rabbit`、`duck`；pose：`stand`、`sleep`、`happy`（
   "decos": [{"id": "deco_1", "zh": "牆上的畫", "x": 0.6, "y": 0.28, "w": 0.14, "h": 0.12}]
 }
 ```
-- `x`、`y` 是框的中心，`w`、`h` 是寬高，都是 0～1，相對於 600×800 的場景。`stand` 是角色站的地方（框的下緣是腳底），`buddy` 是小夥伴站的地方。
+- 東西的 `x`、`y` 是框的中心，`w`、`h` 是寬高，都是 0～1，相對於 600×800 的場景。`stand` 是角色站的地方、`buddy` 是小夥伴站的地方：這兩個的 `y` 是框的**下緣**（腳底），不是中心。角色和小夥伴畫在 z=50，東西的 z 都小於 50。
+- `exits` 的鍵：`left`、`right`、`up`（樓梯）、`down`、`out`（出門到小街）、`back`（從外面回小街）；值是場景 id。小街的 `things` 就是通往各地方的入口（id 和場景 id 一樣：`home`、`park`、`school`、`market`、`clinic`）。
 - 每樣東西點一下會念 `zh`（家長開了英文就再念 `en`）。
 - `states`：有變化的東西，程式換檔名後綴。
 - `exits`：左右箭頭和樓梯通到哪裡。
