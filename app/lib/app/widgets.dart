@@ -65,19 +65,33 @@ class Puppet extends StatelessWidget {
   final Mood mood;
   final bool flip;
 
+  /// Where the head sits in each pose (assets/art/avatar/layout.json; the
+  /// head, face and hair files are drawn for `stand`). test/art_test.dart
+  /// checks these agree with the file.
+  static const headAt = {'stand': Offset(100, 98), 'sit': Offset(100, 98), 'lie': Offset(66, 190)};
+
   @override
-  Widget build(BuildContext context) => Transform.flip(
-        flipX: flip,
-        child: AspectRatio(
-          aspectRatio: 200 / 260,
-          child: Stack(fit: StackFit.expand, children: [
-            Art(ArtPath.avatarBody(pose, avatar.shirt)),
-            Art(ArtPath.avatarHead(avatar.skin)),
-            Art(ArtPath.avatarFace(mood)),
-            Art(ArtPath.avatarHair(avatar.hair)),
-          ]),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final shift = headAt[pose]! - headAt['stand']!;
+    return Transform.flip(
+      flipX: flip,
+      child: AspectRatio(
+        aspectRatio: 200 / 260,
+        child: LayoutBuilder(builder: (_, box) {
+          final k = box.maxWidth / 200;
+          final head = Transform.translate(
+            offset: shift * k,
+            child: Stack(fit: StackFit.expand, children: [
+              Art(ArtPath.avatarHead(avatar.skin)),
+              Art(ArtPath.avatarFace(mood)),
+              Art(ArtPath.avatarHair(avatar.hair)),
+            ]),
+          );
+          return Stack(fit: StackFit.expand, clipBehavior: Clip.none, children: [Art(ArtPath.avatarBody(pose, avatar.shirt)), head]);
+        }),
+      ),
+    );
+  }
 }
 
 /// The child's puppet as set up, in the pose and mood asked for.

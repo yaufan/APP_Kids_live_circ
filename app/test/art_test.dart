@@ -1,6 +1,10 @@
 import 'dart:io';
 
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_life/app/widgets.dart';
+import 'package:flutter/painting.dart';
 import 'package:little_life/core/content.dart';
 import 'package:little_life/core/scenes.dart';
 import 'package:little_life/core/steps.dart';
@@ -32,6 +36,11 @@ void main() {
       if (!has(ArtPath.avatarFace(m))) missing.add('face_${m.name}');
     }
     if (!has('assets/art/avatar/layout.json')) missing.add('layout.json');
+    final layout = (jsonDecode(File('assets/art/avatar/layout.json').readAsStringSync()) as Map)['head'] as Map;
+    for (final pose in ['stand', 'sit', 'lie']) {
+      final h = layout[pose] as Map;
+      expect(Puppet.headAt[pose], Offset((h['cx'] as num).toDouble(), (h['cy'] as num).toDouble()), reason: 'the program places the head where layout.json says for $pose');
+    }
     for (final b in Buddy.values) {
       for (final pose in ['stand', 'sleep', 'happy', 'eat']) {
         if (!has(ArtPath.buddy(b, pose))) missing.add('${b.name}_$pose');

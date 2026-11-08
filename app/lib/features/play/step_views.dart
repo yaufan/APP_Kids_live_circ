@@ -312,6 +312,7 @@ class _DragViewState extends State<DragView> {
             Positioned(left: size.width * 0.1, top: size.height * 0.04, width: size.width * 0.8, height: size.height * 0.56, child: IgnorePointer(child: StepPic(board, mood: widget.host.mood))),
           for (var s = 0; s < slots.length; s++)
             Positioned.fromRect(
+              key: ValueKey('slot-${slots[s].id}'),
               rect: rects[s],
               child: IgnorePointer(
                 child: slots[s].prop != null
