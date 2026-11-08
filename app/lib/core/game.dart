@@ -115,6 +115,7 @@ class Day {
     this.happenings = const {},
     this.happened = const {},
     this.active,
+    this.ended = false,
   });
 
   /// A fresh day after [previous] (null: the very first, a Monday).
@@ -146,6 +147,9 @@ class Day {
   /// A happening waiting to be dealt with.
   final Happening? active;
 
+  /// Bedtime is over and the day has been counted ([Game.endDay]).
+  final bool ended;
+
   DayPlan plan(Settings s) => DayPlan.make(weekday, off: s.off, full: s.full, weather: weather);
 
   Task? current(Settings s) {
@@ -155,7 +159,7 @@ class Day {
 
   bool get weekend => Week.weekend(weekday);
 
-  Day copyWith({int? index, Set<Task>? done, Set<Task>? skipped, Set<Happening>? happened, Happening? active, bool clearActive = false}) => Day(
+  Day copyWith({int? index, Set<Task>? done, Set<Task>? skipped, Set<Happening>? happened, Happening? active, bool clearActive = false, bool? ended}) => Day(
         weekday: weekday,
         weather: weather,
         chore: chore,
@@ -166,6 +170,7 @@ class Day {
         happenings: happenings,
         happened: happened ?? this.happened,
         active: clearActive ? null : (active ?? this.active),
+        ended: ended ?? this.ended,
       );
 
   Map<String, dynamic> toJson() => {
@@ -179,6 +184,7 @@ class Day {
         'happenings': {for (final e in happenings.entries) '${e.key}': e.value.name},
         'happened': [for (final h in happened) h.name],
         if (active != null) 'active': active!.name,
+        'ended': ended,
       };
 
   static Day? fromJson(Map<String, dynamic>? j) {
@@ -208,6 +214,7 @@ class Day {
             ?Happening.values.asNameMap()[n],
       },
       active: Happening.values.asNameMap()[j['active']],
+      ended: j['ended'] == true,
     );
   }
 }
@@ -305,8 +312,12 @@ class Game {
         restSince: clearRest ? null : (restSince ?? this.restSince),
       );
 
-  /// A day begins (the first one, or the morning after [endDay]).
-  Game beginDay(math.Random rnd) => copyWith(day: Day.next(rnd, settings, previous: day));
+  /// A day begins (the first one, or the morning after [endDay]; a day that
+  /// was over but never counted is counted first).
+  Game beginDay(math.Random rnd) {
+    final g = day != null && dayOver && !day!.ended ? endDay() : this;
+    return g.copyWith(day: Day.next(rnd, g.settings, previous: g.day));
+  }
 
   /// A task finished: a sticker, the hand moves on, and something may
   /// happen now.
@@ -343,6 +354,7 @@ class Game {
   /// decoration; every seventh day a mark on the height chart.
   Game endDay() {
     final d = day!;
+    if (d.ended) return this;
     final plan = d.plan(settings);
     final all = plan.tasks.every(d.done.contains);
     final days = daysDone + 1;
@@ -351,7 +363,7 @@ class Game {
       height: days % 7 == 0 && height < maxHeight ? height + 1 : height,
       daysDone: days,
       history: [...history.skip(math.max(0, history.length + 1 - historyKept)), DayRecord(d.weekday, [for (final t in plan.tasks) if (d.done.contains(t)) t], [for (final t in plan.tasks) if (!d.done.contains(t)) t])],
-      day: d.copyWith(index: plan.length - 1, clearActive: true),
+      day: d.copyWith(index: plan.length - 1, clearActive: true, ended: true),
     );
   }
 

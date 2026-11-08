@@ -266,6 +266,8 @@ void main() {
       expect(g.daysDone, 1);
       expect(g.height, 0);
       expect(g.history.single.done, plan.tasks);
+      expect(g.endDay().daysDone, 1, reason: 'counted once');
+      expect(g.day!.ended, isTrue);
       expect(g.decosIn(Scene.living), 1);
       expect(g.decosIn(Scene.bedroom), 0);
       final monday = g.day!.weekday;
@@ -289,6 +291,18 @@ void main() {
       expect(g.daysDone, 7);
       expect(g.height, 1);
       expect(g.history.length, Game.historyKept);
+    });
+
+    test('a day over but never counted is counted when the next begins', () {
+      var g = fresh();
+      for (final t in g.day!.plan(settings).tasks) {
+        g = g.finish(t);
+      }
+      expect(g.dayOver, isTrue);
+      g = g.beginDay(math.Random(9));
+      expect(g.daysDone, 1);
+      expect(g.decos, 1);
+      expect(g.day!.done, isEmpty);
     });
 
     test('a rest lasts an hour unless a parent lets play go on', () {

@@ -27,8 +27,9 @@ class GameNotifier extends Notifier<Game> {
   @override
   Game build() {
     final g = ref.read(savedGameProvider);
-    // A day is always under way once the child exists.
-    return g.profile != null && g.day == null ? g.beginDay(ref.read(randomProvider)) : g;
+    // A day is always under way once the child exists; an app closed at
+    // bedtime opens on the next morning.
+    return g.profile != null && (g.day == null || g.dayOver) ? g.beginDay(ref.read(randomProvider)) : g;
   }
 
   void change(Game Function(Game g) f) {
