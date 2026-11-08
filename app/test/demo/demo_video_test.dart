@@ -353,14 +353,14 @@ void main() {
     // Bedtime.
     mark('sleep');
     change((g) => g.turnClock(g.day!.plan(g.settings).indexOf(Task.sleep)));
-    caption.value = '回家，上樓去房間睡覺';
+    caption.value = '回家，點樓梯上樓，去房間睡覺';
     await label('小街');
     await seconds(1.2);
     await thing('home');
     await seconds(1.2);
     await label('往左：客廳');
     await seconds(1.2);
-    await label('上樓：房間');
+    await thing('stairs');
     await seconds(1.5);
     await thing('bed');
     await seconds(1);

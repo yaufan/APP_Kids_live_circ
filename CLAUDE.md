@@ -27,7 +27,7 @@
 - 名稱：小小生活家。
 
 ## GitHub Actions
-- 工作流程（照迷宮小冒險，**還沒加**；第一次放上 main 前要先問）：
+- 工作流程（照迷宮小冒險，2026-11-08 加好；第一次放上 main 前要先問）：
   - `app.yml`（App）：推到 `main` 而且改到 `app/**` 時跑分析、全部測試（含完整流程）、打包 APK，約 15～20 分鐘。
   - `release.yml`（Release）：推到 `main` 而且改到 `app/pubspec.yaml`、`CHANGELOG.md` 或它自己時，版本還沒發布過就打包三個 APK 放上 Releases，約 20 分鐘；版本沒變約 1 分鐘。
   - `cleanup.yml`：手動，刪舊的建置檔案，約 1 分鐘。
@@ -56,8 +56,14 @@
 - 完整流程和截圖：`flutter test test/flow_test.dart`，截圖在 `app/build/screenshots/`。
 - 示範影片（每一版都要給使用者）：在 `app/` 裡 `flutter test test/demo/demo_video_test.dart --dart-define=DEMO=true`（約 5～10 分鐘，要 ffmpeg），再在專案根目錄 `python3 tools/demo_audio.py` 把背景音樂和音效混進去。輸出 `app/build/demo/demo.mp4`；`chapters.txt` 是每一段開始的格數（每秒 10 格），用來剪新功能的片段。
 
-## 程式在哪裡（開始寫程式後照這樣放）
-- `app/assets/scenes/<房間>.json`：每個房間的東西（位置、大小、名字、可以點什麼），圖和程式共用。
-- `app/lib/core/`：作息和時鐘（`day.dart`）、小遊戲的步驟（`steps.dart`）、偶爾發生的事（`events.dart`）、存檔、聲音、語音。
-- `app/lib/features/`：取名選角色、房間（`room/`）、小遊戲（`play/`）、貼紙表、休息、家長關卡和家長模式。
-- 圖：`design/art/`（Python 畫 SVG：`kit.py` 立體書畫法、`avatar.py`、`room_<房間>.py`、`props_*.py`、`icon.py`；`build.py` 產生和檢查，`fluttercheck` 用真的 flutter_svg 比對）；聲音：`design/sounds/make_sounds.py`。
+## 程式在哪裡
+- `app/assets/scenes/<場景>.json`：每個場景的東西（位置、大小、名字、狀態、出口），圖和程式共用（`design/art/scene.py` 產生）。
+- `app/lib/core/`：內容的名字（`content.dart`：場景、天氣、星期、小夥伴、時鐘圖案、事情、家事、偶發事件）、一天的計畫和時鐘的圈（`day.dart`）、小遊戲的步驟（`steps.dart`：點、搓、拖、選、按住五種）、偶發事件的排程（`events.dart`）、存檔的東西（`game.dart`）、場景排版（`scenes.dart`）、聲音、語音、存檔。
+- `app/lib/features/`：取名選角色（`setup/`）、房間和時鐘（`room/`：`room_screen.dart`、`scene_view.dart`、`clock_view.dart`）、小遊戲（`play/`：`play_screen.dart`、`step_views.dart`）、貼紙表、睡覺（`night/`）、休息、家長關卡和家長模式。
+- 圖：`design/art/`（Python 畫 SVG：`kit.py` 立體書畫法、`scene.py` 場景、`room_<房間>.py`、`place_<地方>.py`、`avatar.py`、`buddy.py`、`clock.py`、`props_care.py`、`props_out.py`、`rewards.py`、`icon.py`；`build.py all` 產生和檢查，`fluttercheck` 用真的 flutter_svg 比對；`README.md` 教怎麼加場景）；聲音：`design/sounds/make_sounds.py`。
+- 畫面上的東西怎麼點：場景裡的東西點了念名字；該做的事的東西會發亮、點了開始小遊戲；樓梯和大門點了就走；左右箭頭在下面那排房間圖示的兩端。小夥伴只有中間會吃到點，擋到發亮的東西時會自己站到另一邊。
+- 時鐘：圈上的圖案是一天的事照順序排，不是真的時間；指針停在一件事上約 40～55 秒沒做就跳過（家長模式看得到最常跳過哪一項）。
+
+## 目前的狀態（2026-11-08）
+- 0.1.0 做完、測試都過，等使用者說可以推到 main 才發布（Secrets 還要加）。
+- 還沒在真手機上試過、沒用耳朵聽過聲音；示範影片和截圖在 `app/build/`。
