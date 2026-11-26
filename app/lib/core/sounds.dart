@@ -122,7 +122,14 @@ class SystemSounds implements Sounds {
   final _holders = MusicHolders();
   Future<void>? _setUp;
   AudioPlayer? _loop;
-  Music? _playing;
+
+  /// The music wanted now, and the music the loop was last started with.
+  Music? _playing, _sounding;
+
+  /// Switches of the music, one after the other: a stop asked for while a
+  /// start is still loading waits for it, so the music never starts after
+  /// it was stopped (the app gone out of sight, a rest).
+  Future<void> _switching = Future.value();
   var _music = true, _effects = true, _away = false;
 
   @override
@@ -139,9 +146,17 @@ class SystemSounds implements Sounds {
     _update();
   }
 
-  Future<void> _ready() => _setUp ??= AudioPlayer.global.setAudioContext(
-        AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers, respectSilence: true).build(),
-      );
+  /// Where every player plays: Android's media stream (the volume keys
+  /// set it, and the ringer's vibrate or silent mode does not mute it),
+  /// never taking the audio focus, so the effects, the music and the voice
+  /// do not stop one another; on iOS the ambient category, mixed with the
+  /// others.
+  static final audioContext = AudioContext(
+    android: const AudioContextAndroid(contentType: AndroidContentType.sonification, usageType: AndroidUsageType.game, audioFocus: AndroidAudioFocus.none),
+    iOS: AudioContextIOS(category: AVAudioSessionCategory.ambient),
+  );
+
+  Future<void> _ready() => _setUp ??= AudioPlayer.global.setAudioContext(audioContext);
 
   @override
   void play(String sfx) {
@@ -152,7 +167,7 @@ class SystemSounds implements Sounds {
   Future<void> _play(String sfx) async {
     try {
       await _ready();
-      final pool = await (_pools[sfx] ??= AudioPool.createFromAsset(path: 'sounds/$sfx.wav', maxPlayers: 4));
+      final pool = await (_pools[sfx] ??= AudioPool.create(source: AssetSource('sounds/$sfx.wav'), maxPlayers: 4, audioContext: audioContext));
       await pool.start(volume: _sfxVolume);
     } catch (_) {
       _pools.remove(sfx);
@@ -175,22 +190,30 @@ class SystemSounds implements Sounds {
     final wanted = !_music || _away ? null : _holders.current;
     if (wanted == _playing) return;
     _playing = wanted;
-    unawaited(_switchTo(wanted));
+    _switching = _switching.then((_) => _apply());
   }
 
-  Future<void> _switchTo(Music? music) async {
+  /// Makes the loop play what is wanted now (a later wish queues another).
+  Future<void> _apply() async {
+    final music = _playing;
+    if (music == _sounding) return;
     try {
       await _ready();
       var loop = _loop;
       if (loop == null) {
         loop = _loop = AudioPlayer();
+        await loop.setAudioContext(audioContext);
         await loop.setReleaseMode(ReleaseMode.loop);
       }
       await loop.stop();
-      if (music == null || music != _playing) return;
+      _sounding = null;
+      if (music == null) return;
       await loop.setVolume(_musicVolume);
       await loop.play(AssetSource('sounds/${music.file}.wav'));
-    } catch (_) {}
+      _sounding = music;
+    } catch (_) {
+      _sounding = null;
+    }
   }
 
   void dispose() {
