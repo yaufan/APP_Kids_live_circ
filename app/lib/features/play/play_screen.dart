@@ -29,11 +29,15 @@ class PlayScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayScreen> createState() => _PlayScreenState();
 }
 
-class _PlayScreenState extends ConsumerState<PlayScreen> {
+class _PlayScreenState extends ConsumerState<PlayScreen> with HushOnLeave {
   late final List<Step> _steps;
   late final Sounds _sounds;
   var _at = 0;
   var _finished = false;
+
+  /// Back to the room once the sticker has shown and the praise was said.
+  Later? _leave;
+  late final Busy _busy;
 
   @override
   void initState() {
@@ -45,11 +49,15 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
     _steps = widget.task != null
         ? planTask(widget.task!, level: g.settings.level, weather: day.weather, chore: day.chore, rnd: rnd)
         : planHappening(widget.happening!, level: g.settings.level, rnd: rnd);
+    // When the play time runs out, this little game is finished first.
+    _busy = ref.read(busyProvider)..start(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _sayStep());
   }
 
   @override
   void dispose() {
+    _leave?.cancel();
+    _busy.end(this);
     _sounds.release(this);
     super.dispose();
   }
@@ -78,17 +86,20 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
     final game = ref.read(gameProvider.notifier);
     final t = widget.task;
     final h = widget.happening;
+    Future<void>? said;
     if (t != null) {
       game.change((g) => g.finish(t));
       _sounds.play('sticker');
-      speak(ref, '${Strings.praise[_steps.length % Strings.praise.length]}${Strings.taskDone(t)}');
+      said = speak(ref, '${Strings.praise[_steps.length % Strings.praise.length]}${Strings.taskDone(t)}');
     } else if (h != null) {
       game.change((g) => g.dealtWith(h));
       _sounds.play('yay');
-      speak(ref, Strings.eventDone);
+      said = speak(ref, Strings.eventDone);
     }
     setState(() {});
-    Future<void>.delayed(const Duration(milliseconds: 1600), () {
+    // The room says what is next straight away, so the praise is heard out
+    // first (a slow voice is not cut off).
+    _leave = Later(const Duration(milliseconds: 1600), () {
       if (!mounted) return;
       final g = ref.read(gameProvider);
       if (t != null && g.dayOver) {
@@ -98,13 +109,14 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
       } else {
         context.go('/');
       }
-    });
+    }, after: said);
   }
 
   @override
   Widget build(BuildContext context) {
     final g = ref.watch(gameProvider);
-    final Scene scene = widget.task?.scene ?? widget.happening?.scene ?? ref.read(sceneProvider);
+    final t = widget.task;
+    final Scene scene = (t == null ? null : g.day?.sceneOf(t)) ?? t?.scene ?? widget.happening?.scene ?? ref.read(sceneProvider);
     _sounds.hold(this, Music.of(scene, widget.task ?? g.day?.current(g.settings)));
     final step = _step;
     final host = StepHost(ref: ref, onDone: _stepDone, mood: step.mood);
@@ -119,58 +131,62 @@ class _PlayScreenState extends ConsumerState<PlayScreen> {
       HoldStep() => HoldView(key: ValueKey('step-$_at'), step: step, host: host),
     };
 
-    return Scaffold(
-      backgroundColor: Paper.page,
-      body: Stack(children: [
-        Positioned.fill(child: Opacity(opacity: 0.35, child: Art(ArtPath.scene(scene, 'bg'), fit: BoxFit.cover, sky: Paper.sky))),
-        SafeArea(
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: Row(children: [
-                RoundButton(label: Strings.stop, icon: Icons.close_rounded, size: 46, onTap: () => context.canPop() ? context.pop() : context.go('/')),
-                const SizedBox(width: 10),
-                Expanded(child: Pill(text: title, color: widget.task == null ? Paper.coral : Paper.green, size: 18)),
-                const SizedBox(width: 10),
-                FoundDots(count: _steps.length, done: _finished ? _steps.length : _at, color: Paper.green, size: 16),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                SizedBox(width: 74, height: 96, child: Me(mood: _finished ? Mood.happy : step.mood)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: SpeakBubble(
-                    key: ValueKey('say-$_at'),
-                    text: _finished ? Strings.done : step.say,
-                    size: 17,
-                    color: Paper.coral,
-                    onTap: _sayStep,
-                  ),
-                ),
-              ]),
-            ),
-            if (step.safety != null)
+    // The back key is the 「停」 button; once done, the page leaves by itself.
+    return PopScope(
+      canPop: !_finished,
+      child: Scaffold(
+        backgroundColor: Paper.page,
+        body: Stack(children: [
+          Positioned.fill(child: Opacity(opacity: 0.35, child: Art(ArtPath.scene(scene, 'bg'), fit: BoxFit.cover, sky: Paper.sky))),
+          SafeArea(
+            child: Column(children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.favorite_rounded, color: Paper.coral, size: 18),
-                  const SizedBox(width: 6),
-                  Flexible(child: Text(step.safety!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Paper.coral))),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Row(children: [
+                  RoundButton(label: Strings.stop, icon: Icons.close_rounded, size: 46, onTap: () => context.canPop() ? context.pop() : context.go('/')),
+                  const SizedBox(width: 10),
+                  Expanded(child: Pill(text: title, color: widget.task == null ? Paper.coral : Paper.green, size: 18)),
+                  const SizedBox(width: 10),
+                  FoundDots(count: _steps.length, done: _finished ? _steps.length : _at, color: Paper.green, size: 16),
                 ]),
               ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: _finished
-                    ? Center(child: SizedBox(width: 220, height: 220, child: Bob(amount: 6, child: Art(ArtPath.reward(sticker)))))
-                    : AnimatedSwitcher(duration: const Duration(milliseconds: 300), child: view),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  SizedBox(width: 74, height: 96, child: Me(mood: _finished ? Mood.happy : step.mood)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: SpeakBubble(
+                      key: ValueKey('say-$_at'),
+                      text: _finished ? Strings.done : step.say,
+                      size: 17,
+                      color: Paper.coral,
+                      onTap: _sayStep,
+                    ),
+                  ),
+                ]),
               ),
-            ),
-          ]),
-        ),
-      ]),
+              if (step.safety != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.favorite_rounded, color: Paper.coral, size: 18),
+                    const SizedBox(width: 6),
+                    Flexible(child: Text(step.safety!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Paper.coral))),
+                  ]),
+                ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: _finished
+                      ? Center(child: SizedBox(width: 220, height: 220, child: Bob(amount: 6, child: Art(ArtPath.reward(sticker)))))
+                      : AnimatedSwitcher(duration: const Duration(milliseconds: 300), child: view),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
 }

@@ -67,12 +67,19 @@ abstract final class Strings {
   static const clockOpen = '時鐘：現在該做什麼？';
   static String clockSay(Task t) => '現在是${t.icon.zh}的時間。';
   static String dayLine(int weekday, Weather w) => '${Week.zh[weekday]}，${w.zh}。';
-  static String weekendNote(int weekday) => Week.weekend(weekday) ? '今天不用上學！' : '明天要上學。';
+  static String weekendNote(int weekday, [Weather weather = Weather.sun]) => weather == Weather.storm
+      ? storm
+      : switch (weekday) {
+          5 => '明天不用上學！',
+          6 => '今天不用上學！',
+          7 => '今天不用上學，明天要上學。',
+          _ => '明天要上學。',
+        };
   static const outside = '出門';
   static const back = '回去';
   static const toStreet = '回小街';
   static const home = '回家';
-  static const storm = '颱風天，今天在家玩。';
+  static const storm = '今天不出門，在家玩。';
   static const stairsUp = '上樓';
   static const stairsDown = '下樓';
   static const left = '往左';
@@ -107,9 +114,9 @@ abstract final class Strings {
   static const callParent = '請爸爸媽媽來幫忙喔！';
   static const parentGateTitle = '家長確認';
   static String gateQuestion(String a, String b) => '$a 加 $b 等於多少？';
-  static const gateRules = '答錯三次要等一分鐘。';
+  static const gateRules = '答錯三次要等一分鐘，再錯會等更久。';
   static const wrongAnswer = '不對喔，換一題。';
-  static String gateWait(int s) => '請等 $s 秒再試';
+  static String gateWait(Duration left) => left > const Duration(minutes: 1) ? '請等 ${(left.inSeconds / 60).ceil()} 分鐘再試' : '請等 ${left.inSeconds + (left.inMilliseconds % 1000 > 0 ? 1 : 0)} 秒再試';
   static const backspace = '刪掉';
   static const cancel = '取消';
 

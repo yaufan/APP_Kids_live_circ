@@ -122,7 +122,9 @@ class Day {
   factory Day.next(math.Random rnd, Settings s, {Day? previous}) {
     final weekday = previous == null ? 1 : Week.next(previous.weekday);
     final weather = weatherFor(rnd, yesterday: previous?.weather);
-    final chore = nextChore(previous?.chore);
+    // The chore moves on after a school day only: a weekend has none, so
+    // this way all seven come round in turn (掃地 and 倒垃圾 too).
+    final chore = previous == null ? nextChore(null) : (previous.weekend ? previous.chore : nextChore(previous.chore));
     final seed = rnd.nextInt(1 << 30);
     final plan = DayPlan.make(weekday, off: s.off, full: s.full, weather: weather);
     return Day(weekday: weekday, weather: weather, chore: chore, seed: seed, happenings: scheduleHappenings(plan, weather, math.Random(seed), level: s.level));
@@ -158,6 +160,13 @@ class Day {
   }
 
   bool get weekend => Week.weekend(weekday);
+
+  /// Where [t] is done today: 幫忙做家事 is wherever today's chore is
+  /// (收衣服 on the balcony, 擦桌子 in the kitchen…).
+  Scene sceneOf(Task t) => t == Task.chore ? chore.scene : t.scene;
+
+  /// The thing to tap there to start [t].
+  String targetOf(Task t) => t == Task.chore ? chore.target : t.target;
 
   Day copyWith({int? index, Set<Task>? done, Set<Task>? skipped, Set<Happening>? happened, Happening? active, bool clearActive = false, bool? ended}) => Day(
         weekday: weekday,
@@ -241,8 +250,96 @@ class DayRecord {
   }
 }
 
+/// The sitting under way, kept so that closing the app and opening it
+/// again soon goes on with the same play time (docs/design.md 「每次玩多久」):
+/// how long it has been played, and when the app was last in sight.
+class Sitting {
+  const Sitting(this.played, this.seenAt);
+
+  /// Seconds of play time used so far.
+  final int played;
+  final DateTime seenAt;
+
+  /// Away (or closed) this long is a rest: the next sitting starts afresh.
+  static const keep = Duration(minutes: 10);
+
+  /// How much of the play time is used up when the app opens at [now]:
+  /// back within [keep] it goes on (the time away does not count, and a
+  /// clock moved back meanwhile gives nothing extra); later it starts again.
+  Duration usedAt(DateTime now) => now.difference(seenAt) >= keep ? Duration.zero : Duration(seconds: played);
+
+  Map<String, dynamic> toJson() => {'played': played, 'seenAt': seenAt.toIso8601String()};
+
+  static Sitting? fromJson(dynamic j) {
+    if (j is! Map) return null;
+    final p = j['played'], at = j['seenAt'];
+    final seen = at is String ? DateTime.tryParse(at) : null;
+    if (p is! int || p < 0 || seen == null) return null;
+    return Sitting(math.min(p, 24 * 3600), seen);
+  }
+}
+
+/// The parent gate's lock after wrong answers (kept, so closing the app
+/// does not open it): three wrong in a row lock it for a minute, the next
+/// three for five, then fifteen; a right answer starts it all again.
+class GateLock {
+  const GateLock({this.misses = 0, this.lockouts = 0, this.lockedAt});
+
+  /// Wrong answers since the last lock (or the last right answer).
+  final int misses;
+
+  /// Locks so far (each one longer).
+  final int lockouts;
+  final DateTime? lockedAt;
+
+  static const missesToLock = 3;
+  static const lengths = [Duration(minutes: 1), Duration(minutes: 5), Duration(minutes: 15)];
+
+  /// How long the latest lock lasts.
+  Duration get length => lengths[(lockouts - 1).clamp(0, lengths.length - 1)];
+
+  /// How long is left of the lock at [now] (zero: open). A phone clock
+  /// moved back before the lock counts as the lock just starting, so it
+  /// never lasts longer than its length.
+  Duration leftAt(DateTime now) {
+    final at = lockedAt;
+    if (at == null) return Duration.zero;
+    final gone = now.difference(at);
+    final left = length - (gone.isNegative ? Duration.zero : gone);
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  bool lockedNow(DateTime now) => leftAt(now) > Duration.zero;
+
+  /// A wrong answer at [now].
+  GateLock miss(DateTime now) {
+    final m = misses + 1;
+    if (m < missesToLock) return GateLock(misses: m, lockouts: lockouts, lockedAt: lockedAt);
+    return GateLock(lockouts: lockouts + 1, lockedAt: now);
+  }
+
+  /// The clock was moved back before the lock: it starts at [now] instead.
+  GateLock anchoredAt(DateTime now) {
+    final at = lockedAt;
+    return at != null && now.isBefore(at) ? GateLock(misses: misses, lockouts: lockouts, lockedAt: now) : this;
+  }
+
+  Map<String, dynamic> toJson() => {'misses': misses, 'lockouts': lockouts, if (lockedAt != null) 'lockedAt': lockedAt!.toIso8601String()};
+
+  static GateLock fromJson(dynamic j) {
+    if (j is! Map) return const GateLock();
+    final m = j['misses'], l = j['lockouts'], at = j['lockedAt'];
+    return GateLock(
+      misses: m is int && m >= 0 && m < missesToLock ? m : 0,
+      lockouts: l is int && l >= 0 ? math.min(l, 99) : 0,
+      lockedAt: at is String ? DateTime.tryParse(at) : null,
+    );
+  }
+}
+
 /// Everything kept on the phone: the child, the settings, today, the
-/// stickers and decorations earned, the rest. One small file (store.dart).
+/// stickers and decorations earned, the rest, the sitting under way and the
+/// gate's lock. One small file (store.dart).
 class Game {
   const Game({
     this.profile,
@@ -254,6 +351,8 @@ class Game {
     this.daysDone = 0,
     this.history = const [],
     this.restSince,
+    this.sitting,
+    this.gate = const GateLock(),
   });
 
   /// Null until the first start (the setup page).
@@ -278,11 +377,18 @@ class Game {
   /// When the play time ran out (null: playing).
   final DateTime? restSince;
 
+  /// The sitting under way (null: none saved yet).
+  final Sitting? sitting;
+  final GateLock gate;
+
   static const restLength = Duration(hours: 1);
   static const maxDecos = 18;
   static const maxHeight = 10;
   static const historyKept = 7;
 
+  /// Whether the rest is still on at [now]. A phone clock moved back to
+  /// before the rest began keeps it on (RestGuard then starts the hour
+  /// again from then, so it does not last for ever either).
   bool resting(DateTime now) => restSince != null && now.difference(restSince!) < restLength;
 
   int get stickerCount => stickers.values.fold(0, (a, b) => a + b);
@@ -300,7 +406,7 @@ class Game {
     return n;
   }
 
-  Game copyWith({Profile? profile, Settings? settings, Day? day, Map<Task, int>? stickers, int? decos, int? height, int? daysDone, List<DayRecord>? history, DateTime? restSince, bool clearRest = false}) => Game(
+  Game copyWith({Profile? profile, Settings? settings, Day? day, Map<Task, int>? stickers, int? decos, int? height, int? daysDone, List<DayRecord>? history, DateTime? restSince, bool clearRest = false, Sitting? sitting, GateLock? gate}) => Game(
         profile: profile ?? this.profile,
         settings: settings ?? this.settings,
         day: day ?? this.day,
@@ -310,6 +416,8 @@ class Game {
         daysDone: daysDone ?? this.daysDone,
         history: history ?? this.history,
         restSince: clearRest ? null : (restSince ?? this.restSince),
+        sitting: sitting ?? this.sitting,
+        gate: gate ?? this.gate,
       );
 
   /// A day begins (the first one, or the morning after [endDay]; a day that
@@ -374,7 +482,8 @@ class Game {
     return plan.length > 0 && d.done.contains(plan.tasks.last);
   }
 
-  Game rest(DateTime now) => copyWith(restSince: now);
+  /// The play time ran out at [now]; the sitting is over.
+  Game rest(DateTime now) => copyWith(restSince: now, sitting: Sitting(0, now));
 
   Game playOn() => copyWith(clearRest: true);
 
@@ -402,6 +511,8 @@ class Game {
         'daysDone': daysDone,
         'history': [for (final r in history) r.toJson()],
         if (restSince != null) 'restSince': restSince!.toIso8601String(),
+        if (sitting != null) 'sitting': sitting!.toJson(),
+        'gate': gate.toJson(),
       };
 
   factory Game.fromJson(Map<String, dynamic>? j) {
@@ -429,6 +540,8 @@ class Game {
           for (final r in (j['history'] as List)) ?DayRecord.fromJson(r),
       ],
       restSince: rest is String ? DateTime.tryParse(rest) : null,
+      sitting: Sitting.fromJson(j['sitting']),
+      gate: GateLock.fromJson(j['gate']),
     );
   }
 }

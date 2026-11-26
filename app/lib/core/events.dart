@@ -31,7 +31,9 @@ List<Happening> _pool(DayPlan plan, Weather weather, math.Random rnd) {
     Happening.pee, Happening.pee, // the likeliest
     Happening.hungry, Happening.thirsty, Happening.sleepy,
     Happening.doorbell, Happening.phone, Happening.share, Happening.angry, Happening.spill,
-    Happening.buddyHungry, Happening.plant, Happening.mosquito, Happening.fall, Happening.sneeze,
+    Happening.buddyHungry, Happening.plant, Happening.mosquito, Happening.fall,
+    // The clinic is outside: not on a typhoon day.
+    if (weather.goesOut) Happening.sneeze,
     if (weather == Weather.hot) Happening.sweaty,
     if (weather == Weather.cold) Happening.cold,
     if (weather == Weather.rain || weather == Weather.storm) ...[Happening.rainLaundry, Happening.thunder],

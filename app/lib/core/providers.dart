@@ -58,14 +58,55 @@ class SceneNotifier extends Notifier<Scene> {
   void go(Scene s) => state = s;
 }
 
-/// When this sitting started (reset when a parent lets play go on).
+/// When this sitting started, as if it had been played without a break:
+/// time that was not the child's (parent mode, the background) moves it
+/// later. An app opened again within ten minutes goes on with the sitting
+/// it saved ([Sitting]); a parent letting play go on starts a new one.
 final sessionStartProvider = NotifierProvider<SessionStart, DateTime>(SessionStart.new);
 
 class SessionStart extends Notifier<DateTime> {
   @override
-  DateTime build() => ref.read(clockProvider)();
+  DateTime build() {
+    final now = ref.read(clockProvider)();
+    final saved = ref.read(gameProvider).sitting;
+    return saved == null ? now : now.subtract(saved.usedAt(now));
+  }
 
   void restart() => state = ref.read(clockProvider)();
+
+  /// Moves the start of the sitting by [d] (never later than now): later by
+  /// the time that was not the child's, earlier by as much as the phone's
+  /// clock was moved back, so that gives no extra time.
+  void shift(Duration d) {
+    final now = ref.read(clockProvider)(), moved = state.add(d);
+    state = moved.isAfter(now) ? now : moved;
+  }
+
+  /// The play time used so far at [now].
+  Duration usedAt(DateTime now) {
+    final d = now.difference(state);
+    return d.isNegative ? Duration.zero : d;
+  }
+}
+
+/// Whether a little game is being played: when the play time runs out the
+/// child finishes it first (at most RestGuard.finishGame more). The screen
+/// playing holds it, so a screen going away cannot let go of the next
+/// one's game.
+final busyProvider = Provider<Busy>((ref) => Busy());
+
+class Busy {
+  Object? _owner;
+
+  bool get busy => _owner != null;
+
+  /// [owner] is playing.
+  void start(Object owner) => _owner = owner;
+
+  /// [owner] is done (or went away); another screen's game goes on.
+  void end(Object owner) {
+    if (identical(_owner, owner)) _owner = null;
+  }
 }
 
 /// Things said only once per app start (the welcome).

@@ -32,12 +32,13 @@ class TestApp {
   Game get game => container.read(gameProvider);
   void change(Game Function(Game g) f) => container.read(gameProvider.notifier).change(f);
 
-  static Future<TestApp> start(WidgetTester tester, {Game game = const Game(), Size size = const Size(1080, 2340), double ratio = 2.75, String at = '/', int seed = 1}) async {
+  static Future<TestApp> start(WidgetTester tester, {Game game = const Game(), Size size = const Size(1080, 2340), double ratio = 2.75, String at = '/', int seed = 1, DateTime? now}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = ratio;
     addTearDown(tester.view.reset);
     final store = MemoryStore();
     final app = TestApp(tester, store, RecordingSounds(), RecordingVoice());
+    if (now != null) app.now = now;
     await tester.pumpWidget(RepaintBoundary(
       key: shotKey,
       child: ProviderScope(
@@ -82,6 +83,33 @@ class TestApp {
       await settle(200);
     }
     await tapLabel(label, ms: ms);
+  }
+
+  /// The app goes out of sight (the home button, another app).
+  void hide() {
+    for (final s in [AppLifecycleState.inactive, AppLifecycleState.hidden, AppLifecycleState.paused]) {
+      tester.binding.handleAppLifecycleStateChanged(s);
+    }
+  }
+
+  /// The app is back in sight.
+  void show() {
+    for (final s in [AppLifecycleState.hidden, AppLifecycleState.inactive, AppLifecycleState.resumed]) {
+      tester.binding.handleAppLifecycleStateChanged(s);
+    }
+  }
+
+  /// The phone's back key; true if it would have closed the app.
+  Future<bool> back() async {
+    var closed = false;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'SystemNavigator.pop') closed = true;
+      return null;
+    });
+    await tester.binding.handlePopRoute();
+    await settle(600);
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null);
+    return closed;
   }
 
   Future<void> end() async {

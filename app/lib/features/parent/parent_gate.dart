@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/strings.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
+import '../../core/game.dart';
+import '../../core/providers.dart';
 
 /// A question a grown-up answers easily but a 2 to 5 year old cannot read:
 /// the numbers are written out in Chinese characters (as in the sibling apps).
@@ -53,47 +56,106 @@ abstract final class ParentPass {
   }
 }
 
+/// Parent pages close by themselves (docs/design.md 「家長模式」): when the
+/// app goes out of sight, and after five minutes without a touch. The pass
+/// from the gate is used up, so a child who picks up the phone later finds
+/// the child's side and has to answer the gate again.
+class ParentWatch extends StatefulWidget {
+  const ParentWatch({super.key, required this.child, required this.onLeave});
+
+  final Widget child;
+  final VoidCallback onLeave;
+
+  static const idle = Duration(minutes: 5);
+
+  @override
+  State<ParentWatch> createState() => _ParentWatchState();
+}
+
+class _ParentWatchState extends State<ParentWatch> {
+  Timer? _idle;
+  AppLifecycleListener? _life;
+  var _left = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _touched();
+    _life = AppLifecycleListener(onHide: _leave);
+  }
+
+  @override
+  void dispose() {
+    _idle?.cancel();
+    _life?.dispose();
+    super.dispose();
+  }
+
+  void _touched() {
+    _idle?.cancel();
+    _idle = Timer(ParentWatch.idle, _leave);
+  }
+
+  void _leave() {
+    if (_left || !mounted) return;
+    _left = true;
+    _idle?.cancel();
+    ParentPass.take();
+    widget.onLeave();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => _touched(), child: widget.child);
+}
+
 /// Full screen, so a child cannot tap past it. Three wrong answers in a row
-/// and it waits a minute.
-class ParentGatePage extends StatefulWidget {
+/// lock it for a minute, the next three for five, then fifteen ([GateLock],
+/// kept on the phone so closing the app does not open it).
+class ParentGatePage extends ConsumerStatefulWidget {
   const ParentGatePage({super.key, this.random});
 
   final math.Random? random;
 
-  static const maxMisses = 3;
-  static const lockout = Duration(minutes: 1);
-
-  static int _misses = 0;
-  static DateTime? _lockedUntil;
+  /// How many gates are open (RestGuard does not count that time as play).
+  static final showing = ValueNotifier<int>(0);
 
   @override
-  State<ParentGatePage> createState() => _ParentGatePageState();
+  ConsumerState<ParentGatePage> createState() => _ParentGatePageState();
 }
 
-class _ParentGatePageState extends State<ParentGatePage> {
+class _ParentGatePageState extends ConsumerState<ParentGatePage> {
   late var _challenge = ParentGateChallenge.random(widget.random);
   var _typed = '';
   var _wrong = false;
   Timer? _tick;
 
+  DateTime get _now => ref.read(clockProvider)();
+
   @override
   void initState() {
     super.initState();
+    ParentGatePage.showing.value++;
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_locked && mounted) setState(() {});
+      if (!mounted) return;
+      // A clock moved back before the lock: the lock starts now instead, so
+      // it never lasts for ever.
+      final g = ref.read(gameProvider);
+      final anchored = g.gate.anchoredAt(_now);
+      if (!identical(anchored, g.gate)) {
+        ref.read(gameProvider.notifier).change((g) => g.copyWith(gate: anchored));
+      }
+      if (g.gate.lockedAt != null) setState(() {});
     });
   }
 
   @override
   void dispose() {
+    ParentGatePage.showing.value--;
     _tick?.cancel();
     super.dispose();
   }
 
-  bool get _locked {
-    final until = ParentGatePage._lockedUntil;
-    return until != null && DateTime.now().isBefore(until);
-  }
+  bool get _locked => ref.read(gameProvider).gate.lockedNow(_now);
 
   void _key(String k) {
     if (_locked) return;
@@ -107,26 +169,26 @@ class _ParentGatePageState extends State<ParentGatePage> {
       _typed += k;
     });
     if (_typed.length < '${_challenge.answer}'.length) return;
+    final game = ref.read(gameProvider.notifier);
     if (_challenge.check(_typed)) {
-      ParentGatePage._misses = 0;
+      game.change((g) => g.copyWith(gate: const GateLock()));
       Navigator.of(context).pop(true);
       return;
     }
+    final now = _now;
+    game.change((g) => g.copyWith(gate: g.gate.miss(now)));
     setState(() {
       _wrong = true;
       _typed = '';
       _challenge = ParentGateChallenge.random(widget.random);
-      if (++ParentGatePage._misses >= ParentGatePage.maxMisses) {
-        ParentGatePage._misses = 0;
-        ParentGatePage._lockedUntil = DateTime.now().add(ParentGatePage.lockout);
-      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final locked = _locked;
-    final wait = locked ? ParentGatePage._lockedUntil!.difference(DateTime.now()).inSeconds + 1 : 0;
+    final gate = ref.watch(gameProvider.select((g) => g.gate));
+    final left = gate.leftAt(_now);
+    final locked = left > Duration.zero;
     final need = '${_challenge.answer}'.length;
     Widget box(int i) => Container(
           width: 60,
@@ -152,57 +214,60 @@ class _ParentGatePageState extends State<ParentGatePage> {
             ),
           ),
         );
-    return Scaffold(
-      backgroundColor: Paper.parentBg,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: ListView(padding: const EdgeInsets.all(20), children: [
-              Row(children: [
-                const Expanded(
-                  child: PaperCard(
-                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    child: Text(Strings.callParent, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+    return ParentWatch(
+      onLeave: () => Navigator.of(context).pop(false),
+      child: Scaffold(
+        backgroundColor: Paper.parentBg,
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: ListView(padding: const EdgeInsets.all(20), children: [
+                Row(children: [
+                  const Expanded(
+                    child: PaperCard(
+                      padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      child: Text(Strings.callParent, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                RoundButton(label: Strings.cancel, icon: Icons.close_rounded, onTap: () => Navigator.of(context).pop(false)),
-              ]),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Row(children: [
-                    Icon(Icons.lock_outline_rounded, size: 18, color: Paper.inkSoft),
-                    SizedBox(width: 8),
-                    Text(Strings.parentGateTitle, style: TextStyle(fontSize: 15, color: Paper.inkSoft)),
-                  ]),
-                  const SizedBox(height: 10),
-                  Text(locked ? Strings.gateWait(wait) : _challenge.question, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 18),
-                  if (!locked) Row(children: [for (var i = 0; i < need; i++) box(i)]),
-                  const SizedBox(height: 14),
-                  Text(_wrong ? Strings.wrongAnswer : Strings.gateRules, style: TextStyle(fontSize: 14, color: _wrong ? const Color(0xFFD9655A) : Paper.inkSoft)),
+                  const SizedBox(width: 8),
+                  RoundButton(label: Strings.cancel, icon: Icons.close_rounded, onTap: () => Navigator.of(context).pop(false)),
                 ]),
-              ),
-              const SizedBox(height: 22),
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.7,
-                children: [
-                  for (final k in ['1', '2', '3', '4', '5', '6', '7', '8', '9']) key(k),
-                  const SizedBox.shrink(),
-                  key('0'),
-                  key('⌫'),
-                ],
-              ),
-            ]),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Row(children: [
+                      Icon(Icons.lock_outline_rounded, size: 18, color: Paper.inkSoft),
+                      SizedBox(width: 8),
+                      Text(Strings.parentGateTitle, style: TextStyle(fontSize: 15, color: Paper.inkSoft)),
+                    ]),
+                    const SizedBox(height: 10),
+                    Text(locked ? Strings.gateWait(left) : _challenge.question, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 18),
+                    if (!locked) Row(children: [for (var i = 0; i < need; i++) box(i)]),
+                    const SizedBox(height: 14),
+                    Text(_wrong ? Strings.wrongAnswer : Strings.gateRules, style: TextStyle(fontSize: 14, color: _wrong ? const Color(0xFFD9655A) : Paper.inkSoft)),
+                  ]),
+                ),
+                const SizedBox(height: 22),
+                GridView.count(
+                  crossAxisCount: 3,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.7,
+                  children: [
+                    for (final k in ['1', '2', '3', '4', '5', '6', '7', '8', '9']) key(k),
+                    const SizedBox.shrink(),
+                    key('0'),
+                    key('⌫'),
+                  ],
+                ),
+              ]),
+            ),
           ),
         ),
       ),

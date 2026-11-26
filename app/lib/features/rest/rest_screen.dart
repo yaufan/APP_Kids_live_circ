@@ -21,7 +21,7 @@ class RestScreen extends ConsumerStatefulWidget {
   ConsumerState<RestScreen> createState() => _RestScreenState();
 }
 
-class _RestScreenState extends ConsumerState<RestScreen> {
+class _RestScreenState extends ConsumerState<RestScreen> with HushOnLeave {
   late final Sounds _sounds;
 
   @override
@@ -50,7 +50,9 @@ class _RestScreenState extends ConsumerState<RestScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => BackKey(child: _page());
+
+  Widget _page() => Scaffold(
         backgroundColor: Paper.night,
         body: Stack(children: [
           Positioned.fill(child: Art(ArtPath.scene(Scene.bedroom, 'bg'), fit: BoxFit.cover, sky: const Color(0xFF2B3470))),

@@ -177,7 +177,7 @@ class _ClockSheet extends ConsumerWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Art(ArtPath.clock('w_${day.weather.name}')),
             const SizedBox(width: 8),
-            Flexible(child: Text('${Strings.dayLine(day.weekday, day.weather)}${Strings.weekendNote(day.weekday)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
+            Flexible(child: Text('${Strings.dayLine(day.weekday, day.weather)}${Strings.weekendNote(day.weekday, day.weather)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
           ]),
         ),
         const SizedBox(height: 14),

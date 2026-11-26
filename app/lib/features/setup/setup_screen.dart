@@ -93,53 +93,58 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     const shirtColors = [Color(0xFFF08A8A), Color(0xFFFFD66B), Color(0xFF8FD48F), Color(0xFF7FB8F0), Color(0xFFB79CF0), Color(0xFFF7A8C8)];
     const skinColors = [Color(0xFFFFE3CC), Color(0xFFF2C9A4), Color(0xFFD9A478), Color(0xFFA8714B)];
 
-    return Scaffold(
-      body: Sky(
-        top: Paper.cream,
-        bottom: Paper.page,
-        child: SafeArea(
-          child: LayoutBuilder(builder: (context, box) {
-            final wide = box.maxWidth > 700;
-            final puppet = Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: SizedBox(
-                height: wide ? 420 : 250,
-                child: Stack(alignment: Alignment.bottomCenter, children: [
-                  Positioned(bottom: 0, child: SizedBox(height: wide ? 400 : 240, child: Puppet(avatar: _avatar, mood: Mood.happy))),
-                  Positioned(bottom: 0, right: wide ? 40 : 10, child: SizedBox(width: wide ? 160 : 100, height: wide ? 160 : 100, child: Bob(child: Art(ArtPath.buddy(_buddy, 'happy'))))),
-                ]),
-              ),
-            );
-            final form = ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
-              const Text(Strings.setupTitle, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 10),
-              TextField(
-                key: const ValueKey('name'),
-                controller: _name,
-                maxLength: Profile.maxName,
-                style: const TextStyle(fontSize: 22),
-                decoration: InputDecoration(
-                  hintText: Strings.nameHint,
-                  hintStyle: const TextStyle(fontSize: 15, color: Paper.inkSoft),
-                  filled: true,
-                  fillColor: Colors.white,
-                  counterText: '',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+    // The back key goes home when there is one (a parent changing the
+    // look); on the very first start it stays.
+    return BackKey(
+      onBack: ref.read(gameProvider).profile == null ? null : () => context.go('/'),
+      child: Scaffold(
+        body: Sky(
+          top: Paper.cream,
+          bottom: Paper.page,
+          child: SafeArea(
+            child: LayoutBuilder(builder: (context, box) {
+              final wide = box.maxWidth > 700;
+              final puppet = Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: SizedBox(
+                  height: wide ? 420 : 250,
+                  child: Stack(alignment: Alignment.bottomCenter, children: [
+                    Positioned(bottom: 0, child: SizedBox(height: wide ? 400 : 240, child: Puppet(avatar: _avatar, mood: Mood.happy))),
+                    Positioned(bottom: 0, right: wide ? 40 : 10, child: SizedBox(width: wide ? 160 : 100, height: wide ? 160 : 100, child: Bob(child: Art(ArtPath.buddy(_buddy, 'happy'))))),
+                  ]),
                 ),
-              ),
-              if (!wide) puppet,
-              const SizedBox(height: 6),
-              const Text(Strings.pickLook, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-              picker(Strings.hair, [1, 2, 3, 4], _avatar.hair, (n) => Art(ArtPath.avatarHair(n)), (n) => setState(() => _avatar = _avatar.copyWith(hair: n)), 'hair'),
-              picker(Strings.skin, [1, 2, 3, 4], _avatar.skin, (n) => DecoratedBox(decoration: BoxDecoration(color: skinColors[n - 1], shape: BoxShape.circle)), (n) => setState(() => _avatar = _avatar.copyWith(skin: n)), 'skin'),
-              picker(Strings.shirt, [1, 2, 3, 4, 5, 6], _avatar.shirt, (n) => DecoratedBox(decoration: BoxDecoration(color: shirtColors[n - 1], borderRadius: BorderRadius.circular(12))), (n) => setState(() => _avatar = _avatar.copyWith(shirt: n)), 'shirt'),
-              picker(Strings.pickBuddy, Buddy.values, _buddy, (b) => Art(ArtPath.buddy(b, 'stand')), (b) => setState(() => _buddy = b), 'buddy'),
-              const SizedBox(height: 22),
-              Center(child: WideButton(key: const ValueKey('start'), label: Strings.start, icon: Icons.wb_sunny_rounded, color: Paper.coral, onTap: _start, height: 68)),
-            ]);
-            if (!wide) return form;
-            return Row(children: [Expanded(child: Center(child: puppet)), Expanded(child: form)]);
-          }),
+              );
+              final form = ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
+                const Text(Strings.setupTitle, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                TextField(
+                  key: const ValueKey('name'),
+                  controller: _name,
+                  maxLength: Profile.maxName,
+                  style: const TextStyle(fontSize: 22),
+                  decoration: InputDecoration(
+                    hintText: Strings.nameHint,
+                    hintStyle: const TextStyle(fontSize: 15, color: Paper.inkSoft),
+                    filled: true,
+                    fillColor: Colors.white,
+                    counterText: '',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+                  ),
+                ),
+                if (!wide) puppet,
+                const SizedBox(height: 6),
+                const Text(Strings.pickLook, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                picker(Strings.hair, [1, 2, 3, 4], _avatar.hair, (n) => Art(ArtPath.avatarHair(n)), (n) => setState(() => _avatar = _avatar.copyWith(hair: n)), 'hair'),
+                picker(Strings.skin, [1, 2, 3, 4], _avatar.skin, (n) => DecoratedBox(decoration: BoxDecoration(color: skinColors[n - 1], shape: BoxShape.circle)), (n) => setState(() => _avatar = _avatar.copyWith(skin: n)), 'skin'),
+                picker(Strings.shirt, [1, 2, 3, 4, 5, 6], _avatar.shirt, (n) => DecoratedBox(decoration: BoxDecoration(color: shirtColors[n - 1], borderRadius: BorderRadius.circular(12))), (n) => setState(() => _avatar = _avatar.copyWith(shirt: n)), 'shirt'),
+                picker(Strings.pickBuddy, Buddy.values, _buddy, (b) => Art(ArtPath.buddy(b, 'stand')), (b) => setState(() => _buddy = b), 'buddy'),
+                const SizedBox(height: 22),
+                Center(child: WideButton(key: const ValueKey('start'), label: Strings.start, icon: Icons.wb_sunny_rounded, color: Paper.coral, onTap: _start, height: 68)),
+              ]);
+              if (!wide) return form;
+              return Row(children: [Expanded(child: Center(child: puppet)), Expanded(child: form)]);
+            }),
+          ),
         ),
       ),
     );

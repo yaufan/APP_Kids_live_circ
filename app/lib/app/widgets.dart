@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -9,6 +10,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../core/content.dart';
 import '../core/providers.dart';
 import '../core/scenes.dart';
+import '../core/voice.dart';
 import 'theme.dart';
 
 /// A drawing from assets/art/ (nothing at all if it is missing).
@@ -168,6 +170,26 @@ class _PressableState extends ConsumerState<Pressable> {
       child: AnimatedScale(scale: _down ? 0.93 : 1, duration: const Duration(milliseconds: 90), child: widget.child),
     );
   }
+}
+
+/// The phone's back key (or the back gesture from the screen's edge) on a
+/// page the app went to, not one laid over another: it must not close the
+/// app. [onBack] goes where the page's own button goes; without one the
+/// key does nothing (the room, the rest, the night).
+class BackKey extends StatelessWidget {
+  const BackKey({super.key, required this.child, this.onBack});
+
+  final Widget child;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) onBack?.call();
+        },
+        child: child,
+      );
 }
 
 /// A white card with a soft blue edge under it.
@@ -495,9 +517,75 @@ class PicButton extends StatelessWidget {
 }
 
 /// Says a line out loud (if the parent left the voice on), with the
-/// English after it when that is on.
-void speak(WidgetRef ref, String zh, {String? en}) {
+/// English after it when that is on. Completes when it has been said.
+/// Nothing is said while the app is out of sight.
+Future<void> speak(WidgetRef ref, String zh, {String? en}) {
   final s = ref.read(gameProvider).settings;
-  if (!s.voice) return;
-  ref.read(voiceProvider).say(zh, en: s.english ? en : null);
+  if (!s.voice || appHidden) return Future.value();
+  _speaker = ref;
+  return ref.read(voiceProvider).say(zh, en: s.english ? en : null);
+}
+
+/// The screen that asked for the line being said.
+Object? _speaker;
+
+/// A screen that stops its own voice when the child leaves it, so a line
+/// does not go on over the next screen (and the next screen's first line,
+/// asked for while this one goes away, is not cut off).
+mixin HushOnLeave<T extends ConsumerStatefulWidget> on ConsumerState<T> {
+  late final Voice _hush;
+  late final Object _me;
+
+  @override
+  void initState() {
+    super.initState();
+    _hush = ref.read(voiceProvider);
+    _me = ref;
+  }
+
+  @override
+  void dispose() {
+    if (identical(_speaker, _me)) {
+      _speaker = null;
+      _hush.stop();
+    }
+    super.dispose();
+  }
+}
+
+/// Runs [then] after [min], and not before the line [after] has been said
+/// (at most [atMost] of waiting for it), so a slow voice is not cut off by
+/// what comes next; [cancel] stops it.
+class Later {
+  Later(Duration min, VoidCallback then, {Future<void>? after, Duration atMost = const Duration(seconds: 8)}) : _then = then {
+    _timer = Timer(min, () {
+      _timeUp = true;
+      _fire();
+    });
+    if (after == null) {
+      _heard = true;
+    } else {
+      after.timeout(atMost).then((_) => _hear(), onError: (_) => _hear());
+    }
+  }
+
+  final VoidCallback _then;
+  late final Timer _timer;
+  var _timeUp = false, _heard = false, _over = false;
+
+  void _hear() {
+    _heard = true;
+    _fire();
+  }
+
+  void _fire() {
+    if (_over || !_timeUp || !_heard) return;
+    _over = true;
+    _then();
+  }
+
+  void cancel() {
+    _over = true;
+    _timer.cancel();
+  }
 }

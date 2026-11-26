@@ -14,6 +14,7 @@ import '../../core/game.dart';
 import '../../core/providers.dart';
 import '../../core/scenes.dart';
 import '../../core/sounds.dart';
+import '../../core/voice.dart';
 import '../parent/parent_gate.dart';
 import 'clock_view.dart';
 import 'scene_view.dart';
@@ -29,9 +30,13 @@ class RoomScreen extends ConsumerStatefulWidget {
   ConsumerState<RoomScreen> createState() => _RoomScreenState();
 }
 
-class _RoomScreenState extends ConsumerState<RoomScreen> {
+class _RoomScreenState extends ConsumerState<RoomScreen> with HushOnLeave {
   late final Sounds _sounds;
   Timer? _tick;
+
+  /// Whether the room is the page on top (not under a little game, the
+  /// big clock, the stickers or the gate).
+  var _current = true;
 
   /// Seconds the hand has waited on the current task.
   var _waited = 0;
@@ -49,6 +54,20 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final current = ModalRoute.of(context)?.isCurrent ?? true;
+    if (current && !_current) {
+      // Back from a little game (or the clock, the stickers): say straight
+      // away what to do now, or what just happened.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _announce();
+      });
+    }
+    _current = current;
+  }
+
+  @override
   void dispose() {
     _tick?.cancel();
     _sounds.release(this);
@@ -58,8 +77,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
   Game get _game => ref.read(gameProvider);
 
   /// The hand moves on by itself after a while (docs/design.md 「時鐘」).
+  /// It waits while the app is out of sight.
   void _second() {
-    if (!mounted) return;
+    if (!mounted || appHidden) return;
     final g = _game;
     if (g.day == null || g.dayOver || ModalRoute.of(context)?.isCurrent != true) return;
     _waited++;
@@ -69,6 +89,8 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       _waited = 0;
       ref.read(gameProvider.notifier).change((g) => g.skipCurrent());
       _sounds.play('clock_tick');
+      // The next thing (or what just happened) is said at once.
+      _announce();
     }
   }
 
@@ -91,7 +113,8 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     if (t == null || (!force && _said == t)) return;
     _said = t;
     final here = ref.read(sceneProvider);
-    speak(ref, here == t.scene ? '${Strings.nowDo(name, t)}${Strings.here(t)}' : '${Strings.nowDo(name, t)}${Strings.goTo(t.scene)}', en: t.en);
+    final where = day.sceneOf(t);
+    speak(ref, here == where ? '${Strings.nowDo(name, t)}${Strings.here(t)}' : '${Strings.nowDo(name, t)}${Strings.goTo(where)}', en: t.en);
   }
 
   String _signSound(Happening h) => switch (h) {
@@ -112,13 +135,15 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
         _ => 'hint',
       };
 
-  /// Where to go for what the clock says (a happening first).
+  /// Where to go for what the clock says (a happening first; today's
+  /// chore is in its own room).
   Scene? _targetScene(Game g) {
     final d = g.day;
     if (d == null) return null;
     final h = d.active;
     if (h != null) return h.scene ?? ref.read(sceneProvider);
-    return d.current(g.settings)?.scene;
+    final t = d.current(g.settings);
+    return t == null ? null : d.sceneOf(t);
   }
 
   String? _targetThing(Game g) {
@@ -127,8 +152,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     final h = d.active;
     if (h != null) return h.target;
     final t = d.current(g.settings);
-    if (t == null) return null;
-    return t == Task.chore ? d.chore.target : t.target;
+    return t == null ? null : d.targetOf(t);
   }
 
   /// The next scene on the way from [from] to [to] (through the exits).
@@ -246,8 +270,11 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     };
   }
 
+  /// The room is the child's home page: the back key stays here.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => BackKey(child: _page(context));
+
+  Widget _page(BuildContext context) {
     final g = ref.watch(gameProvider);
     final here = ref.watch(sceneProvider);
     final scenes = ref.watch(scenesProvider).asData?.value;
@@ -331,7 +358,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     );
 
     final stripScenes = here.home ? Scene.rooms : [Scene.living, Scene.street, ...Scene.places];
-    final bubbleText = active != null ? Strings.happening(name, active) : (task == null ? '' : (hereIsTarget ? '${Strings.nowDo(name, task)}${Strings.here(task)}' : '${Strings.nowDo(name, task)}${Strings.goTo(task.scene)}'));
+    final bubbleText = active != null ? Strings.happening(name, active) : (task == null ? '' : (hereIsTarget ? '${Strings.nowDo(name, task)}${Strings.here(task)}' : '${Strings.nowDo(name, task)}${Strings.goTo(day.sceneOf(task))}'));
 
     return Scaffold(
       backgroundColor: Paper.page,

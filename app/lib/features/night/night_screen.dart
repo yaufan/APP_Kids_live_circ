@@ -20,11 +20,12 @@ class NightScreen extends ConsumerStatefulWidget {
   ConsumerState<NightScreen> createState() => _NightScreenState();
 }
 
-class _NightScreenState extends ConsumerState<NightScreen> with SingleTickerProviderStateMixin {
+class _NightScreenState extends ConsumerState<NightScreen> with SingleTickerProviderStateMixin, HushOnLeave {
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 4))..forward();
   late final Sounds _sounds;
   var _ended = false;
   var _all = false;
+  var _morningDone = false;
 
   @override
   void initState() {
@@ -53,7 +54,9 @@ class _NightScreenState extends ConsumerState<NightScreen> with SingleTickerProv
   }
 
   void _morning() {
-    if (!_ended) return;
+    // Once: a second tap while the page goes away is not another day.
+    if (!_ended || _morningDone) return;
+    _morningDone = true;
     ref.read(gameProvider.notifier).newDay();
     ref.read(sceneProvider.notifier).go(Scene.bedroom);
     _sounds.play('light_on');
@@ -61,8 +64,11 @@ class _NightScreenState extends ConsumerState<NightScreen> with SingleTickerProv
     context.go('/');
   }
 
+  // A tap brings the morning; the back key does nothing here.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => BackKey(child: _page());
+
+  Widget _page() {
     final g = ref.watch(gameProvider);
     final rooms = Scene.rooms;
     return Scaffold(

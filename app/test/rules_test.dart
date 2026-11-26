@@ -106,6 +106,35 @@ void main() {
       expect(seen.length, 7);
       expect(seen, isNot(contains(Chore.toys)));
     });
+
+    test('day after day, every chore comes on a school day, in its own room (掃地 and 倒垃圾 too)', () {
+      final rnd = math.Random(5);
+      const s = Settings();
+      Day? d;
+      final onSchoolDays = <Chore>{};
+      for (var i = 0; i < 21; i++) {
+        final next = Day.next(rnd, s, previous: d);
+        if (d != null && d.weekend) expect(next.chore, d.chore, reason: 'a weekend has no chore, so it waits');
+        d = next;
+        if (d.weekend) continue;
+        final plan = d.plan(s);
+        if (!plan.tasks.contains(Task.chore)) continue;
+        onSchoolDays.add(d.chore);
+        expect(d.sceneOf(Task.chore), d.chore.scene, reason: '${d.chore.zh} is done where it is');
+        expect(d.targetOf(Task.chore), d.chore.target);
+      }
+      expect(onSchoolDays, containsAll([for (final c in Chore.values) if (c != Chore.toys) c]));
+      expect(Day.next(rnd, s).sceneOf(Task.wake), Scene.bedroom, reason: 'the other tasks keep their room');
+    });
+
+    test('a typhoon day sends nobody out: nothing happens that needs the clinic', () {
+      for (var seed = 0; seed < 300; seed++) {
+        final plan = DayPlan.make(1 + seed % 7, weather: Weather.storm);
+        for (final h in scheduleHappenings(plan, Weather.storm, math.Random(seed)).values) {
+          expect(h.scene?.home ?? true, isTrue, reason: '${h.name} on a typhoon day');
+        }
+      }
+    });
   });
 
   group('the little games', () {
@@ -303,6 +332,47 @@ void main() {
       expect(g.daysDone, 1);
       expect(g.decos, 1);
       expect(g.day!.done, isEmpty);
+    });
+
+    test('the sitting goes on when the app opens again within ten minutes', () {
+      final seen = DateTime(2026, 11, 8, 10);
+      const played = 8 * 60;
+      final s = Sitting(played, seen);
+      expect(s.usedAt(seen.add(const Duration(minutes: 9))), const Duration(minutes: 8));
+      expect(s.usedAt(seen.add(const Duration(minutes: 10))), Duration.zero, reason: 'a rest: a new sitting');
+      expect(s.usedAt(seen.subtract(const Duration(hours: 3))), const Duration(minutes: 8), reason: 'a clock moved back gives nothing extra');
+      final back = Game.fromJson(const Game().copyWith(sitting: s).toJson());
+      expect(back.sitting!.played, played);
+      expect(back.sitting!.seenAt, seen);
+      expect(Sitting.fromJson({'played': -3, 'seenAt': 'x'}), isNull);
+      expect(const Game().rest(seen).sitting!.played, 0, reason: 'a rest ends the sitting');
+    });
+
+    test('the gate locks for 1, 5, then 15 minutes, a right answer starts again, and a clock moved back cannot lock it for ever', () {
+      final t = DateTime(2026, 11, 8, 10);
+      var g = const GateLock();
+      g = g.miss(t).miss(t);
+      expect(g.lockedNow(t), isFalse, reason: 'two wrong answers');
+      g = g.miss(t);
+      expect(g.leftAt(t), const Duration(minutes: 1));
+      expect(g.lockedNow(t.add(const Duration(seconds: 61))), isFalse);
+      final t2 = t.add(const Duration(minutes: 2));
+      g = g.miss(t2).miss(t2).miss(t2);
+      expect(g.leftAt(t2), const Duration(minutes: 5));
+      final t3 = t2.add(const Duration(minutes: 6));
+      g = g.miss(t3).miss(t3).miss(t3);
+      expect(g.leftAt(t3), const Duration(minutes: 15));
+      final t4 = t3.add(const Duration(minutes: 16));
+      g = g.miss(t4).miss(t4).miss(t4);
+      expect(g.leftAt(t4), const Duration(minutes: 15), reason: 'no longer than fifteen');
+      final past = t4.subtract(const Duration(days: 365));
+      expect(g.leftAt(past), lessThanOrEqualTo(const Duration(minutes: 15)));
+      expect(g.anchoredAt(past).lockedAt, past, reason: 'the lock starts again from the moved clock');
+      expect(g.anchoredAt(past).lockedNow(past.add(const Duration(minutes: 16))), isFalse);
+      final back = GateLock.fromJson(g.toJson());
+      expect(back.lockouts, g.lockouts);
+      expect(back.lockedAt, g.lockedAt);
+      expect(Game.fromJson(const Game().copyWith(gate: g).toJson()).gate.leftAt(t4), const Duration(minutes: 15));
     });
 
     test('a rest lasts an hour unless a parent lets play go on', () {

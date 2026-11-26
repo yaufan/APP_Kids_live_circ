@@ -248,6 +248,9 @@ class _DragViewState extends State<DragView> {
   /// Where each item went (slot id), or null while in the tray.
   late final List<String?> _placed = List.filled(widget.step.items.length, null);
   int? _held;
+
+  /// The finger holding it (only the first one counts).
+  int? _finger;
   Offset _at = Offset.zero;
   var _wiggle = 0;
   var _done = false;
@@ -283,9 +286,12 @@ class _DragViewState extends State<DragView> {
     _held = null;
     final item = widget.step.items[i];
     final rects = _slotRects(size, slotSize);
-    for (var s = 0; s < rects.length; s++) {
+    // The nearest slot it was let go over wins (seats side by side reach
+    // into each other a little: the middle one must not count as the full
+    // one next to it).
+    final over = [for (var s = 0; s < rects.length; s++) if (rects[s].inflate(slotSize * 0.35).contains(_at)) s]..sort((a, b) => (rects[a].center - _at).distance.compareTo((rects[b].center - _at).distance));
+    for (final s in over.take(1)) {
       final slot = widget.step.slots[s];
-      if (!rects[s].inflate(slotSize * 0.35).contains(_at)) continue;
       final inSlot = _placed.where((p) => p == slot.id).length;
       if (slot.takes(item) && inSlot < slot.capacity) {
         setState(() => _placed[i] = slot.id);
@@ -369,7 +375,7 @@ class _DragViewState extends State<DragView> {
         return Listener(
           behavior: HitTestBehavior.opaque,
           onPointerDown: (e) {
-            if (_done) return;
+            if (_done || _finger != null) return;
             for (var i = widget.step.items.length - 1; i >= 0; i--) {
               if (_placed[i] != null) continue;
               if (_trayRect(i, size, itemSize).inflate(8).contains(e.localPosition)) {
@@ -378,6 +384,7 @@ class _DragViewState extends State<DragView> {
                 if (zh != null) widget.host.say(zh);
                 setState(() {
                   _held = i;
+                  _finger = e.pointer;
                   _at = e.localPosition;
                 });
                 return;
@@ -385,10 +392,19 @@ class _DragViewState extends State<DragView> {
             }
           },
           onPointerMove: (e) {
-            if (_held != null) setState(() => _at = e.localPosition);
+            if (_held != null && e.pointer == _finger) setState(() => _at = e.localPosition);
           },
-          onPointerUp: (_) => _drop(size, slotSize),
-          onPointerCancel: (_) => _drop(size, slotSize),
+          onPointerUp: (e) {
+            if (e.pointer != _finger) return;
+            _finger = null;
+            _drop(size, slotSize);
+          },
+          onPointerCancel: (e) {
+            // A touch the phone took away: back to the tray.
+            if (e.pointer != _finger) return;
+            _finger = null;
+            setState(() => _held = null);
+          },
           child: Stack(clipBehavior: Clip.none, children: kids),
         );
       });
@@ -491,6 +507,9 @@ class _HoldViewState extends State<HoldView> with SingleTickerProviderStateMixin
   Timer? _loop;
   var _done = false;
 
+  /// The finger holding (a second finger or a palm does nothing).
+  int? _finger;
+
   double get _need => widget.step.tooLong == null ? 1 : widget.step.seconds / widget.step.tooLong!;
 
   @override
@@ -506,6 +525,7 @@ class _HoldViewState extends State<HoldView> with SingleTickerProviderStateMixin
     final sfx = widget.step.loopSfx;
     if (sfx != null) {
       widget.host.play(sfx);
+      _loop?.cancel();
       _loop = Timer.periodic(const Duration(milliseconds: 900), (_) => widget.host.play(sfx));
     }
   }
@@ -551,9 +571,21 @@ class _HoldViewState extends State<HoldView> with SingleTickerProviderStateMixin
               excludeSemantics: true,
               child: Listener(
                 behavior: HitTestBehavior.opaque,
-                onPointerDown: (_) => _down(),
-                onPointerUp: (_) => _up(),
-                onPointerCancel: (_) => _up(),
+                onPointerDown: (e) {
+                  if (_finger != null) return;
+                  _finger = e.pointer;
+                  _down();
+                },
+                onPointerUp: (e) {
+                  if (e.pointer != _finger) return;
+                  _finger = null;
+                  _up();
+                },
+                onPointerCancel: (e) {
+                  if (e.pointer != _finger) return;
+                  _finger = null;
+                  _up();
+                },
                 child: SizedBox(
                   width: size,
                   height: size,

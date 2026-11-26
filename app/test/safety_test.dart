@@ -17,6 +17,35 @@ void main() {
     expect(File('pubspec.yaml').readAsStringSync(), isNot(contains('source: system')));
   });
 
+  test('the phone\'s speech engine can be found on Android 11 and later', () {
+    final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    expect(manifest, contains('<action android:name="android.intent.action.TTS_SERVICE" />'));
+    expect(RegExp(r'<queries>[\s\S]*TTS_SERVICE[\s\S]*</queries>').hasMatch(manifest), isTrue);
+  });
+
+  test('nothing is backed up to the cloud or moved to another phone: it stays on this one', () {
+    final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    expect(manifest, contains('android:allowBackup="false"'));
+    expect(manifest, contains('android:fullBackupContent="false"'));
+    expect(manifest, contains('android:dataExtractionRules="@xml/data_extraction_rules"'));
+    final rules = File('android/app/src/main/res/xml/data_extraction_rules.xml').readAsStringSync();
+    for (final part in ['cloud-backup', 'device-transfer']) {
+      final block = RegExp('<$part>([\\s\\S]*?)</$part>').firstMatch(rules)!.group(1)!;
+      for (final domain in ['root', 'file', 'database', 'sharedpref', 'external']) {
+        expect(block, contains('<exclude domain="$domain" />'), reason: '$part $domain');
+      }
+    }
+  });
+
+  test('the build checks the packages ask for no network, location, camera, microphone, contacts or photos', () {
+    for (final w in ['../.github/workflows/app.yml', '../.github/workflows/release.yml']) {
+      final text = File(w).readAsStringSync();
+      for (final p in ['INTERNET', 'LOCATION', 'AD_ID', 'CAMERA', 'RECORD_AUDIO', 'READ_CONTACTS', 'READ_MEDIA_', 'READ_EXTERNAL_STORAGE']) {
+        expect(text, contains(p), reason: '$w $p');
+      }
+    }
+  });
+
   testWidgets('parent mode and unknown pages cannot be opened without the gate', (tester) async {
     final app = await TestApp.start(tester, game: const Game(profile: Profile(name: '小明')));
     app.go('/parent');
