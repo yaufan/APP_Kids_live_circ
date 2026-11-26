@@ -62,8 +62,19 @@
 - `app/lib/features/`：取名選角色（`setup/`）、房間和時鐘（`room/`：`room_screen.dart`、`scene_view.dart`、`clock_view.dart`）、小遊戲（`play/`：`play_screen.dart`、`step_views.dart`）、貼紙表、睡覺（`night/`）、休息、家長關卡和家長模式。
 - 圖：`design/art/`（Python 畫 SVG：`kit.py` 立體書畫法、`scene.py` 場景、`room_<房間>.py`、`place_<地方>.py`、`avatar.py`、`buddy.py`、`clock.py`、`props_care.py`、`props_out.py`、`rewards.py`、`icon.py`；`build.py all` 產生和檢查，`fluttercheck` 用真的 flutter_svg 比對；`README.md` 教怎麼加場景）；聲音：`design/sounds/make_sounds.py`。
 - 畫面上的東西怎麼點：場景裡的東西點了念名字；該做的事的東西會發亮、點了開始小遊戲；樓梯和大門點了就走；左右箭頭在下面那排房間圖示的兩端。小夥伴只有中間會吃到點，擋到發亮的東西時會自己站到另一邊。
+- `app/lib/app/`：路由和休息時間（`app.dart` 的 `RestGuard`）、共用元件（`widgets.dart`：`speak`、`HushOnLeave`、`Later`、`BackKey`）；家長頁自己關掉在 `features/parent/parent_gate.dart`（`ParentWatch`，鎖住的時間存在 `GateLock`）。
+- 測試：`rules_test`（規則、家事輪流、`Sitting`、`GateLock`）、`art_test`、`safety_test`（權限、家長關卡、語音引擎、不備份、CI 檢查）、`version_test`、`screens_test`（每種家事做得到、什麼時候說話、背景、玩的時間、返回鍵、家長頁、手指）、`flow_test`（手機和平板走一天，截圖）、`demo/demo_video_test.dart`。
 - 時鐘：圈上的圖案是一天的事照順序排，不是真的時間；指針停在一件事上約 40～55 秒沒做就跳過（家長模式看得到最常跳過哪一項）。
 
-## 目前的狀態（2026-11-08）
+## 目前的狀態（2026-11-26）
 - 0.1.0 已發布（Releases 有三個 APK，Secrets 加好了，App 和 Release 各跑約 7 分鐘）。
+- 0.1.1（修正版）做好了、測試都過了，推到工作分支 `claude/relaxed-albattani-6mbwpz`，**還沒發布**（還沒推 `main`，推之前要先問使用者）。修了：
+  - 星期三、四、五的家事做不了：「幫忙做家事」改去當天那種家事的房間（`Day.sceneOf`、`Day.targetOf`）；家事只在上學的日子換下一種，掃地和倒垃圾也會輪到。
+  - 做完一件事、偶爾發生的事、時鐘自己跳過的時候，馬上說下一件事（以前要等 20～27 秒）；小遊戲做完等稱讚念完才回房間（`Later`）。
+  - APP 在背景時時鐘不走、不跳過事情、不說話（`appHidden`），正在說的那句停掉。
+  - 玩的時間（`RestGuard`）：家長關卡和家長模式的時間、背景的時間不算；手機時間往回調不會多玩、也不會提早結束休息；關掉再開 10 分鐘內接著算（`Sitting` 存在檔案裡）；正在玩的小遊戲可以玩完，最多再 2 分鐘（`busyProvider`）。
+  - 返回鍵不會關掉 APP（`BackKey`）；家長關卡和家長模式在 APP 到背景或 5 分鐘沒碰時自己關掉（`ParentWatch`）；家長關卡答錯三次鎖 1 分鐘、再錯 5 分鐘、15 分鐘，關掉 APP 也還在（`GateLock`）。
+  - 語音只念最新的一句、離開畫面停掉自己那句（`HushOnLeave`）；音效和音樂走媒體音量（手機靜音或震動也聽得到）；Android 11 以上找得到語音引擎；不備份到雲端；CI 多檢查相機、麥克風、聯絡人、相片權限。
+  - 小的：兩隻手指按住或拖東西不會亂、擺碗筷中間的位子放得進去、颱風天不會叫小朋友去診所、時鐘旁邊「明天要上學」說對、晚安畫面連點不會跳過一天。
+- 留到以後的小問題：轉時鐘可以一直「過一天」（身高尺會亂長）；晚上停在晚安畫面時間到（或家長按繼續玩），回來是暗的家；房間畫面點東西還是只記一隻手指的位置。
 - 還沒在真手機上試過、沒用耳朵聽過聲音；使用者裝到手機後會再提想改的地方。示範影片和截圖在 `app/build/`。
